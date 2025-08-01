@@ -1,0 +1,323 @@
+.login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.login-background {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-background::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+  opacity: 0.3;
+}
+
+.login-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px;
+  padding: 20px;
+}
+
+.login-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.logo-icon {
+  font-size: 48px;
+  color: #1890ff;
+  background: linear-gradient(135deg, #1890ff, #722ed1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.login-title {
+  margin: 0 !important;
+  color: #262626;
+  font-weight: 600;
+}
+
+.login-subtitle {
+  font-size: 14px;
+  color: #8c8c8c;
+}
+
+.login-form {
+  margin-bottom: 24px;
+}
+
+/* 统一登录表单样式 */
+.login-form .ant-form-item {
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.login-form .ant-form-item-control {
+  width: 100%;
+}
+
+.login-form .ant-form-item-control-input {
+  width: 100%;
+}
+
+.login-form .ant-form-item-control-input-content {
+  width: 100%;
+}
+
+/* 确保输入框样式完全一致 */
+.login-form .ant-input-password {
+  height: 48px;
+  border-radius: 8px;
+  border: 1px solid #d9d9d9;
+  transition: all 0.3s;
+  font-size: 14px;
+  line-height: 1.5;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  background-color: #fff;
+  display: flex;
+  align-items: center;
+}
+
+.login-form .ant-input-password:focus,
+.login-form .ant-input-password:hover {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+}
+
+/* 统一前缀图标样式 */
+.login-form .ant-input-password .ant-input-prefix {
+  color: #bfbfbf;
+  margin-right: 8px;
+}
+
+/* 确保密码框内部元素样式一致 */
+.login-form .ant-input-password .ant-input {
+  height: 100%;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  width: 100%;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.login-form .ant-input-password .ant-input:focus,
+.login-form .ant-input-password .ant-input:hover {
+  border: none;
+  box-shadow: none;
+}
+
+/* 确保密码框的图标样式一致 */
+.login-form .ant-input-password .ant-input-suffix {
+  color: #bfbfbf;
+}
+
+/* 确保密码框的切换按钮样式 */
+.login-form .ant-input-password .ant-input-suffix .ant-input-password-icon {
+  color: #bfbfbf;
+}
+
+/* 隐藏用户名框的切换按钮 */
+.login-form .ant-input-password .ant-input-suffix {
+  display: none;
+}
+
+/* 确保密码框容器样式与普通输入框完全一致 */
+.login-form .ant-input-password {
+  height: 48px;
+  border-radius: 8px;
+  border: 1px solid #d9d9d9;
+  transition: all 0.3s;
+  font-size: 14px;
+  line-height: 1.5;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  background-color: #fff;
+  display: flex;
+  align-items: center;
+}
+
+/* 修复用户名输入框的双重边框问题 */
+.login-form .ant-input {
+  border: 1px solid #d9d9d9;
+  outline: none;
+}
+
+.login-form .ant-input:focus {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+  outline: none;
+}
+
+/* 确保两个输入框的边框样式完全一致 */
+.login-form .ant-input,
+.login-form .ant-input-password {
+  border: 1px solid #d9d9d9;
+  outline: none;
+}
+
+.login-form .ant-input:focus,
+.login-form .ant-input-password:focus {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+  outline: none;
+}
+
+.login-button {
+  height: 48px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  background: linear-gradient(135deg, #1890ff, #722ed1);
+  border: none;
+  transition: all 0.3s;
+}
+
+.login-button:hover {
+  background: linear-gradient(135deg, #40a9ff, #9254de);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
+}
+
+.login-button:active {
+  transform: translateY(0);
+}
+
+.error-message {
+  text-align: center;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  border-radius: 6px;
+}
+
+.login-footer {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.login-footer .ant-btn-link {
+  color: #1890ff;
+  font-size: 14px;
+}
+
+.login-footer .ant-btn-link:hover {
+  color: #40a9ff;
+}
+
+.demo-accounts {
+  text-align: center;
+  padding: 16px;
+  background: #f6f8fa;
+  border-radius: 8px;
+  border: 1px solid #e1e4e8;
+}
+
+.demo-accounts .ant-typography {
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.account-list .ant-typography {
+  font-size: 12px;
+  background: #ffffff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #e1e4e8;
+}
+
+/* 响应式设计 */
+@media (max-width: 480px) {
+  .login-content {
+    padding: 16px;
+  }
+  
+  .login-card {
+    border-radius: 12px;
+  }
+  
+  .logo-icon {
+    font-size: 40px;
+  }
+  
+  .login-title {
+    font-size: 20px !important;
+  }
+  
+  .login-form .ant-input,
+  .login-form .ant-input-password,
+  .login-button {
+    height: 44px;
+  }
+}
+
+/* 动画效果 */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.login-card {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* 加载状态样式 */
+.login-button.ant-btn-loading {
+  background: linear-gradient(135deg, #1890ff, #722ed1);
+  opacity: 0.8;
+}
+
+/* 输入框聚焦时的动画 */
+.login-form .ant-form-item:focus-within {
+  transform: translateY(-2px);
+  transition: transform 0.2s ease;
+} 

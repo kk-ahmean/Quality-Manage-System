@@ -1,0 +1,295 @@
+/* 暗黑模式样式优化 */
+
+/* 系统日志页面暗黑模式优化 */
+[data-theme="dark"] .system-log-page {
+  background-color: #141414;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .log-filters {
+  background-color: #1f1f1f;
+  padding: 16px;
+  border-radius: 6px;
+  border: 1px solid #303030;
+}
+
+[data-theme="dark"] .system-log-table {
+  background-color: #1f1f1f;
+}
+
+[data-theme="dark"] .system-log-table .ant-table-thead > tr > th {
+  background-color: #262626;
+  color: #ffffff;
+  border-bottom: 1px solid #303030;
+}
+
+[data-theme="dark"] .system-log-table .ant-table-tbody > tr > td {
+  background-color: #1f1f1f;
+  color: #ffffff;
+  border-bottom: 1px solid #303030;
+}
+
+[data-theme="dark"] .system-log-table .ant-table-tbody > tr:hover > td {
+  background-color: #262626;
+}
+
+[data-theme="dark"] .log-time-column {
+  color: #d9d9d9;
+}
+
+[data-theme="dark"] .log-user-column {
+  color: #d9d9d9;
+}
+
+[data-theme="dark"] .log-action-column {
+  color: #d9d9d9;
+}
+
+[data-theme="dark"] .log-description-column {
+  color: #d9d9d9;
+}
+
+[data-theme="dark"] .log-ip-column {
+  color: #d9d9d9;
+}
+
+[data-theme="dark"] .log-table-pagination {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .log-table-pagination .ant-pagination-item {
+  background-color: #262626;
+  border-color: #303030;
+}
+
+[data-theme="dark"] .log-table-pagination .ant-pagination-item a {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .log-table-pagination .ant-pagination-item-active {
+  background-color: #1890ff;
+  border-color: #1890ff;
+}
+
+[data-theme="dark"] .log-table-pagination .ant-pagination-item-active a {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .log-table-pagination .ant-pagination-prev,
+[data-theme="dark"] .log-table-pagination .ant-pagination-next {
+  background-color: #262626;
+  border-color: #303030;
+}
+
+[data-theme="dark"] .log-table-pagination .ant-pagination-prev button,
+[data-theme="dark"] .log-table-pagination .ant-pagination-next button {
+  color: #ffffff;
+}
+
+/* Select 组件暗黑模式优化 */
+[data-theme="dark"] .ant-select {
+  background-color: #262626;
+}
+
+[data-theme="dark"] .ant-select-selector {
+  background-color: #262626 !important;
+  border-color: #303030 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .ant-select-selection-placeholder {
+  color: #8c8c8c !important;
+}
+
+[data-theme="dark"] .ant-select-dropdown {
+  background-color: #262626;
+  border-color: #303030;
+}
+
+[data-theme="dark"] .ant-select-item {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .ant-select-item-option-selected {
+  background-color: #1890ff;
+}
+
+[data-theme="dark"] .ant-select-item-option-active {
+  background-color: #303030;
+}
+
+/* DatePicker 组件暗黑模式优化 */
+[data-theme="dark"] .ant-picker {
+  background-color: #262626;
+  border-color: #303030;
+}
+
+[data-theme="dark"] .ant-picker-input > input {
+  background-color: #262626;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .ant-picker-input > input::placeholder {
+  color: #8c8c8c;
+}
+
+[data-theme="dark"] .ant-picker-dropdown {
+  background-color: #262626;
+  border-color: #303030;
+}
+
+[data-theme="dark"] .ant-picker-panel {
+  background-color: #262626;
+}
+
+[data-theme="dark"] .ant-picker-header {
+  background-color: #262626;
+  border-bottom-color: #303030;
+}
+
+[data-theme="dark"] .ant-picker-header button {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .ant-picker-header-view {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .ant-picker-content th,
+[data-theme="dark"] .ant-picker-content td {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .ant-picker-cell {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .ant-picker-cell:hover {
+  background-color: #303030;
+}
+
+[data-theme="dark"] .ant-picker-cell-selected {
+  background-color: #1890ff;
+}
+
+/* Button 组件暗黑模式优化 */
+[data-theme="dark"] .ant-btn {
+  border-color: #303030;
+}
+
+[data-theme="dark"] .ant-btn-primary {
+  background-color: #1890ff;
+  border-color: #1890ff;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .ant-btn-primary:hover {
+  background-color: #40a9ff;
+  border-color: #40a9ff;
+}
+
+[data-theme="dark"] .ant-btn-primary:disabled {
+  background-color: #303030;
+  border-color: #303030;
+  color: #8c8c8c;
+}
+
+/* Tag 组件暗黑模式优化 */
+[data-theme="dark"] .ant-tag {
+  border-color: #303030;
+}
+
+[data-theme="dark"] .ant-tag-blue {
+  background-color: #1890ff;
+  border-color: #1890ff;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .ant-tag-red {
+  background-color: #ff4d4f;
+  border-color: #ff4d4f;
+  color: #ffffff;
+}
+
+/* Spin 组件暗黑模式优化 */
+[data-theme="dark"] .ant-spin-dot-item {
+  background-color: #1890ff;
+}
+
+/* 通用文字颜色优化 */
+[data-theme="dark"] {
+  color: #ffffff;
+}
+
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] h3,
+[data-theme="dark"] h4,
+[data-theme="dark"] h5,
+[data-theme="dark"] h6 {
+  color: #ffffff;
+}
+
+[data-theme="dark"] p {
+  color: #d9d9d9;
+}
+
+[data-theme="dark"] span {
+  color: #d9d9d9;
+}
+
+/* 表格通用暗黑模式优化 */
+[data-theme="dark"] .ant-table {
+  background-color: #1f1f1f;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .ant-table-thead > tr > th {
+  background-color: #262626;
+  color: #ffffff;
+  border-bottom: 1px solid #303030;
+}
+
+[data-theme="dark"] .ant-table-tbody > tr > td {
+  background-color: #1f1f1f;
+  color: #ffffff;
+  border-bottom: 1px solid #303030;
+}
+
+[data-theme="dark"] .ant-table-tbody > tr:hover > td {
+  background-color: #262626;
+}
+
+/* 分页组件暗黑模式优化 */
+[data-theme="dark"] .ant-pagination {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .ant-pagination-item {
+  background-color: #262626;
+  border-color: #303030;
+}
+
+[data-theme="dark"] .ant-pagination-item a {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .ant-pagination-item-active {
+  background-color: #1890ff;
+  border-color: #1890ff;
+}
+
+[data-theme="dark"] .ant-pagination-item-active a {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .ant-pagination-prev,
+[data-theme="dark"] .ant-pagination-next {
+  background-color: #262626;
+  border-color: #303030;
+}
+
+[data-theme="dark"] .ant-pagination-prev button,
+[data-theme="dark"] .ant-pagination-next button {
+  color: #ffffff;
+} 
