@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
+import { HashRouter } from 'react-router-dom'
 import { ConfigProvider } from 'antd'
 import zhCN from 'antd/locale/zh_CN.js'
 import enUS from 'antd/locale/en_US.js'
@@ -36,8 +36,8 @@ export { LanguageContext };
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <HashRouter>
       <AppWrapper />
-    </BrowserRouter>
+    </HashRouter>
   </React.StrictMode>,
 ) 
