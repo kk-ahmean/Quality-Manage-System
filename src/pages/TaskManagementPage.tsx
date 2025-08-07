@@ -42,6 +42,8 @@ import {
 } from '@ant-design/icons'
 import { useTaskStore } from '../stores/taskStore'
 import { useUserStore } from '../stores/userStore'
+import { useAuthStore } from '../stores/authStore'
+import { logSystemActivity } from '../stores/authStore'
 import { Task, TaskStatus, TaskPriority, CreateTaskRequest, UpdateTaskRequest } from '../types/task'
 import { User } from '../types/user'
 import dayjs from 'dayjs'
@@ -68,7 +70,8 @@ const TaskManagementPage: React.FC = () => {
     resetFilters
   } = useTaskStore()
 
-  const { users } = useUserStore()
+  const { users, logUserActivity } = useUserStore()
+  const { user: currentUser } = useAuthStore()
 
   const [createModalVisible, setCreateModalVisible] = useState(false)
   const [editModalVisible, setEditModalVisible] = useState(false)
@@ -121,15 +124,24 @@ const TaskManagementPage: React.FC = () => {
     P3: { text: 'P3', color: 'green' }
   }
 
+  // 任务数据前端兜底排序和编号
+  const sortedTasks = React.useMemo(() => {
+    if (!tasks || tasks.length === 0) return [];
+    // 按创建时间升序排序
+    const sorted = [...tasks].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    // 重新赋值全局递增编号
+    return sorted.map((task, idx) => ({ ...task, sequenceNumber: idx + 1 }));
+  }, [tasks]);
+
   // 表格列定义
   const columns = [
     {
       title: '编号',
       key: 'index',
       width: 60,
-      render: (_: any, __: any, index: number) => (
+      render: (_: any, record: Task) => (
         <span style={{ color: '#666', fontWeight: 'bold' }}>
-          {index + 1}
+          {record.sequenceNumber || '-'}
         </span>
       )
     },
@@ -202,9 +214,13 @@ const TaskManagementPage: React.FC = () => {
       dataIndex: 'assignee',
       key: 'assignee',
       width: 100,
-      render: (assignee: string, record: Task) => {
-        // 通过 assignee ID 查找用户名
-        const displayName = assignee ? getUserName(assignee) : '未分配'
+      render: (assignee: any, record: Task) => {
+        let displayName = '未分配';
+        if (assignee && typeof assignee === 'object' && 'name' in assignee) {
+          displayName = assignee.name;
+        } else if (typeof assignee === 'string') {
+          displayName = getUserName(assignee);
+        }
         return (
           <div style={{ textAlign: 'center' }}>
             <Avatar 
@@ -315,12 +331,6 @@ const TaskManagementPage: React.FC = () => {
             menu={{
               items: [
                 {
-                  key: 'assign',
-                  label: '分配任务',
-                  icon: <UserOutlined />,
-                  onClick: () => handleAssign(record)
-                },
-                {
                   key: 'progress',
                   label: '更新进度',
                   icon: <Progress />,
@@ -366,12 +376,25 @@ const TaskManagementPage: React.FC = () => {
         priority: values.priority,
         assignee: values.assignee,
         dueDate: values.dueDate.format('YYYY-MM-DD'),
+        categoryLevel3: values.categoryLevel3,
+        model: values.model,
+        sku: values.sku,
         tags: values.tags || [],
         estimatedHours: values.estimatedHours
       }
       
       await createTask(taskData)
       message.success('任务创建成功')
+      
+      // 记录活动日志
+      if (currentUser) {
+        logSystemActivity(
+          currentUser.id,
+          'CREATE_TASK',
+          `创建任务: ${values.title}`
+        )
+      }
+      
       setCreateModalVisible(false)
       fetchTasks()
       getStatistics()
@@ -390,8 +413,11 @@ const TaskManagementPage: React.FC = () => {
       priority: task.priority,
       status: task.status,
       progress: task.progress, // 添加进度字段
-      assignee: task.assignee,
+      assignee: typeof task.assignee === 'object' && task.assignee && (task.assignee as any).id ? (task.assignee as any).id : (task.assignee && (task.assignee as any)._id ? (task.assignee as any)._id : task.assignee),
       dueDate: dayjs(task.dueDate),
+      categoryLevel3: task.categoryLevel3,
+      model: task.model,
+      sku: task.sku,
       tags: task.tags,
       estimatedHours: task.estimatedHours
     })
@@ -408,14 +434,27 @@ const TaskManagementPage: React.FC = () => {
         priority: values.priority,
         status: values.status,
         progress: values.progress, // 添加进度字段
-        assignee: values.assignee,
+        assignee: typeof values.assignee === 'object' && values.assignee && (values.assignee as any).id ? (values.assignee as any).id : (values.assignee && (values.assignee as any)._id ? (values.assignee as any)._id : values.assignee),
         dueDate: values.dueDate.format('YYYY-MM-DD'),
+        categoryLevel3: values.categoryLevel3,
+        model: values.model,
+        sku: values.sku,
         tags: values.tags,
         estimatedHours: values.estimatedHours
       }
       
       await updateTask(selectedTask.id, updateData)
       message.success('任务更新成功')
+      
+      // 记录活动日志
+      if (currentUser) {
+        logSystemActivity(
+          currentUser.id,
+          'UPDATE_TASK',
+          `更新任务: ${values.title}`
+        )
+      }
+      
       setEditModalVisible(false)
       setSelectedTask(null)
       fetchTasks() // 刷新任务列表，确保进度列更新
@@ -434,6 +473,16 @@ const TaskManagementPage: React.FC = () => {
         try {
           await deleteTask(task.id)
           message.success('任务删除成功')
+          
+          // 记录活动日志
+          if (currentUser) {
+            logSystemActivity(
+              currentUser.id,
+              'DELETE_TASK',
+              `删除任务: ${task.title}`
+            )
+          }
+          
           fetchTasks()
           getStatistics()
         } catch (error) {
@@ -454,7 +503,7 @@ const TaskManagementPage: React.FC = () => {
     setSelectedTask(task)
     setAssignModalVisible(true)
     assignForm.setFieldsValue({
-      assignee: task.assignee,
+      assignee: typeof task.assignee === 'object' && task.assignee && (task.assignee as any).id ? (task.assignee as any).id : (task.assignee && (task.assignee as any)._id ? (task.assignee as any)._id : task.assignee),
       reason: ''
     })
   }
@@ -463,12 +512,27 @@ const TaskManagementPage: React.FC = () => {
     if (!selectedTask) return
     
     try {
+      const assigneeId = typeof values.assignee === 'object' && values.assignee && (values.assignee as any).id 
+        ? (values.assignee as any).id 
+        : (values.assignee && (values.assignee as any)._id ? (values.assignee as any)._id : values.assignee);
+        
       await assignTask({
         taskId: selectedTask.id,
-        assignee: values.assignee,
+        assignee: assigneeId,
         reason: values.reason
       })
       message.success('任务分配成功')
+      
+      // 记录活动日志
+      if (currentUser) {
+        const assigneeName = getUserName(values.assignee)
+        logSystemActivity(
+          currentUser.id,
+          'ASSIGN_TASK',
+          `分配任务: ${selectedTask.title} 给 ${assigneeName}`
+        )
+      }
+      
       setAssignModalVisible(false)
       setSelectedTask(null)
       fetchTasks()
@@ -497,6 +561,16 @@ const TaskManagementPage: React.FC = () => {
         comment: values.comment
       })
       message.success('进度更新成功')
+      
+      // 记录活动日志
+      if (currentUser) {
+        logSystemActivity(
+          currentUser.id,
+          'UPDATE_TASK_STATUS',
+          `更新任务进度: ${selectedTask.title} - ${values.progress}%`
+        )
+      }
+      
       setProgressModalVisible(false)
       setSelectedTask(null)
       fetchTasks()
@@ -522,6 +596,16 @@ const TaskManagementPage: React.FC = () => {
         progress: values.approved ? 100 : selectedTask.progress
       })
       message.success(values.approved ? '任务验收通过' : '任务验收不通过，已返回修改')
+      
+      // 记录活动日志
+      if (currentUser) {
+        logSystemActivity(
+          currentUser.id,
+          'UPDATE_TASK_STATUS',
+          `${values.approved ? '验收通过' : '验收不通过'}: ${selectedTask.title}`
+        )
+      }
+      
       setReviewModalVisible(false)
       setSelectedTask(null)
       fetchTasks()
@@ -534,7 +618,7 @@ const TaskManagementPage: React.FC = () => {
   // 处理搜索
   const handleSearch = () => {
     const filters: any = {}
-    if (searchKeyword) filters.keyword = searchKeyword
+    if (searchKeyword) filters.search = searchKeyword
     if (statusFilter) filters.status = statusFilter
     if (priorityFilter) filters.priority = priorityFilter
     if (assigneeFilter) filters.assignee = assigneeFilter
@@ -636,7 +720,7 @@ const TaskManagementPage: React.FC = () => {
           </Col>
           <Col span={4}>
             <Select
-              placeholder="状态"
+              placeholder="请选择任务状态"
               value={statusFilter}
               onChange={setStatusFilter}
               allowClear
@@ -651,7 +735,7 @@ const TaskManagementPage: React.FC = () => {
           </Col>
           <Col span={4}>
             <Select
-              placeholder="优先级"
+              placeholder="请选择优先级"
               value={priorityFilter}
               onChange={setPriorityFilter}
               allowClear
@@ -666,7 +750,7 @@ const TaskManagementPage: React.FC = () => {
           </Col>
           <Col span={4}>
             <Select
-              placeholder="负责人"
+              placeholder="请选择负责人"
               value={assigneeFilter}
               onChange={setAssigneeFilter}
               allowClear
@@ -727,7 +811,7 @@ const TaskManagementPage: React.FC = () => {
       >
         <Table
           columns={columns}
-          dataSource={tasks}
+          dataSource={sortedTasks}
           rowKey="id"
           loading={loading}
           pagination={{
@@ -823,6 +907,33 @@ const TaskManagementPage: React.FC = () => {
                 label="预估工时"
               >
                 <Input placeholder="请输入预估工时" />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item
+                name="categoryLevel3"
+                label="三级类目"
+              >
+                <Input placeholder="请输入三级类目" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="model"
+                label="型号"
+              >
+                <Input placeholder="请输入型号" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="sku"
+                label="SKU"
+              >
+                <Input placeholder="请输入SKU" />
               </Form.Item>
             </Col>
           </Row>
@@ -958,6 +1069,33 @@ const TaskManagementPage: React.FC = () => {
             </Col>
           </Row>
           
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item
+                name="categoryLevel3"
+                label="三级类目"
+              >
+                <Input placeholder="请输入三级类目" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="model"
+                label="型号"
+              >
+                <Input placeholder="请输入型号" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="sku"
+                label="SKU"
+              >
+                <Input placeholder="请输入SKU" />
+              </Form.Item>
+            </Col>
+          </Row>
+          
           <Form.Item
             name="tags"
             label="标签"
@@ -1016,11 +1154,13 @@ const TaskManagementPage: React.FC = () => {
                   </div>
                   <div>
                     <strong>负责人：</strong>
-                    {selectedTask.assigneeName}
+                    {selectedTask.assignee && typeof selectedTask.assignee === 'object' && (selectedTask.assignee as any)?.name
+                      ? (selectedTask.assignee as any).name
+                      : getUserName(selectedTask.assignee || '') || selectedTask.assigneeName || selectedTask.assignee || '未分配'}
                   </div>
                   <div>
                     <strong>创建者：</strong>
-                    {selectedTask.creatorName}
+                    {currentUser?.name || '未知'}
                   </div>
                   <div>
                     <strong>截止日期：</strong>
@@ -1030,6 +1170,24 @@ const TaskManagementPage: React.FC = () => {
                     <strong>进度：</strong>
                     <Progress percent={selectedTask.progress} size="small" />
                   </div>
+                  {selectedTask.categoryLevel3 && (
+                    <div>
+                      <strong>三级类目：</strong>
+                      {selectedTask.categoryLevel3}
+                    </div>
+                  )}
+                  {selectedTask.model && (
+                    <div>
+                      <strong>型号：</strong>
+                      {selectedTask.model}
+                    </div>
+                  )}
+                  {selectedTask.sku && (
+                    <div>
+                      <strong>SKU：</strong>
+                      {selectedTask.sku}
+                    </div>
+                  )}
                 </Space>
               </Col>
             </Row>

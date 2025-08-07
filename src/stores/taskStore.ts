@@ -13,6 +13,7 @@ import {
   TaskStatus
 } from '../types/task'
 import { User } from '../types/user'
+import { taskAPI } from '../services/api'
 
 interface TaskStore {
   // 状态
@@ -42,110 +43,16 @@ interface TaskStore {
   resetFilters: () => void
 }
 
-// 模拟数据
-const mockTasks: Task[] = [
-  {
-    id: '1',
-    title: '修复登录页面Bug',
-    description: '用户反馈登录页面在某些浏览器下无法正常显示验证码',
-    priority: 'P1',
-    status: 'in_progress',
-    assignee: '2',
-    assigneeName: '开发工程师',
-    creator: '1',
-    creatorName: '系统管理员',
-    dueDate: '2025-08-05',
-    relatedBugs: ['bug-001'],
-    tags: ['前端', '登录'],
-    progress: 60,
-    estimatedHours: 8,
-    actualHours: 5,
-    createdAt: '2025-07-25T10:00:00Z',
-    updatedAt: '2025-07-29T14:30:00Z'
-  },
-  {
-    id: '2',
-    title: '优化数据库查询性能',
-    description: '用户列表页面加载速度较慢，需要优化数据库查询语句',
-    priority: 'P2',
-    status: 'todo',
-    assignee: '2',
-    assigneeName: '开发工程师',
-    creator: '1',
-    creatorName: '系统管理员',
-    dueDate: '2025-08-10',
-    tags: ['后端', '性能优化'],
-    progress: 0,
-    estimatedHours: 16,
-    createdAt: '2025-07-26T09:00:00Z',
-    updatedAt: '2025-07-26T09:00:00Z'
-  },
-  {
-    id: '3',
-    title: '编写用户管理模块测试用例',
-    description: '为用户管理模块编写完整的单元测试和集成测试用例',
-    priority: 'P2',
-    status: 'review',
-    assignee: '3',
-    assigneeName: '测试工程师',
-    creator: '1',
-    creatorName: '系统管理员',
-    dueDate: '2025-08-03',
-    tags: ['测试', '用户管理'],
-    progress: 90,
-    estimatedHours: 12,
-    actualHours: 10,
-    createdAt: '2025-07-27T11:00:00Z',
-    updatedAt: '2025-07-29T16:00:00Z'
-  },
-  {
-    id: '4',
-    title: '设计新的UI组件库',
-    description: '设计一套统一的UI组件库，提升开发效率和用户体验',
-    priority: 'P3',
-    status: 'completed',
-    assignee: '2',
-    assigneeName: '开发工程师',
-    creator: '1',
-    creatorName: '系统管理员',
-    dueDate: '2025-07-28',
-    tags: ['前端', 'UI设计'],
-    progress: 100,
-    estimatedHours: 24,
-    actualHours: 20,
-    createdAt: '2025-07-20T08:00:00Z',
-    updatedAt: '2025-07-28T18:00:00Z',
-    completedAt: '2025-07-28T18:00:00Z'
-  },
-  {
-    id: '5',
-    title: '部署生产环境',
-    description: '将系统部署到生产环境，确保系统稳定运行',
-    priority: 'P0',
-    status: 'todo',
-    assignee: '2',
-    assigneeName: '开发工程师',
-    creator: '1',
-    creatorName: '系统管理员',
-    dueDate: '2025-08-01',
-    tags: ['部署', '运维'],
-    progress: 0,
-    estimatedHours: 8,
-    createdAt: '2025-07-29T10:00:00Z',
-    updatedAt: '2025-07-29T10:00:00Z'
-  }
-]
-
 const mockStatistics: TaskStatistics = {
-  total: 5,
-  todo: 2,
-  inProgress: 1,
-  review: 1,
-  completed: 1,
+  total: 0,
+  todo: 0,
+  inProgress: 0,
+  review: 0,
+  completed: 0,
   cancelled: 0,
   overdue: 0,
   dueToday: 0,
-  dueThisWeek: 2
+  dueThisWeek: 0
 }
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
@@ -166,47 +73,29 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     set({ loading: true })
     
     try {
-      // 模拟API调用延迟
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      let filteredTasks = [...mockTasks]
-      
-      // 应用筛选条件
-      if (filters.status) {
-        filteredTasks = filteredTasks.filter(task => task.status === filters.status)
-      }
-      
-      if (filters.priority) {
-        filteredTasks = filteredTasks.filter(task => task.priority === filters.priority)
-      }
-      
-      if (filters.assignee) {
-        filteredTasks = filteredTasks.filter(task => task.assignee === filters.assignee)
-      }
-      
-      if (filters.keyword) {
-        const keyword = filters.keyword.toLowerCase()
-        filteredTasks = filteredTasks.filter(task => 
-          task.title.toLowerCase().includes(keyword) ||
-          task.description.toLowerCase().includes(keyword)
-        )
-      }
-      
-      // 分页
-      const start = (page - 1) * pageSize
-      const end = start + pageSize
-      const paginatedTasks = filteredTasks.slice(start, end)
-      
-      set({
-        tasks: paginatedTasks,
-        pagination: {
-          page,
-          pageSize,
-          total: filteredTasks.length
-        },
-        loading: false
+      // 调用真实API
+      const response = await taskAPI.getTasks({
+        ...filters,
+        page,
+        pageSize
       })
-    } catch (error) {
+      
+      if (response.data && response.data.success) {
+        const { tasks, pagination } = response.data.data
+        
+        set({
+          tasks,
+          pagination: {
+            page: pagination.page || page,
+            pageSize: pagination.pageSize || pageSize,
+            total: pagination.total || tasks.length
+          },
+          loading: false
+        })
+      } else {
+        throw new Error(response.data?.message || '获取任务列表失败')
+      }
+    } catch (error: any) {
       console.error('获取任务列表失败:', error)
       set({ loading: false })
     }
@@ -217,29 +106,22 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     set({ loading: true })
     
     try {
-      // 模拟API调用延迟
-      await new Promise(resolve => setTimeout(resolve, 800))
+      // 调用真实API
+      const response = await taskAPI.createTask(taskData)
       
-      const newTask: Task = {
-        id: Date.now().toString(),
-        ...taskData,
-        status: 'todo',
-        progress: 0,
-        creator: '1', // 当前用户ID
-        creatorName: '系统管理员',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+      if (response.data && response.data.success) {
+        const newTask = response.data.data
+        
+        set(state => ({
+          tasks: [...state.tasks, newTask],
+          loading: false
+        }))
+        
+        return newTask
+      } else {
+        throw new Error(response.data?.message || '创建任务失败')
       }
-      
-      mockTasks.push(newTask)
-      
-      set(state => ({
-        tasks: [...state.tasks, newTask],
-        loading: false
-      }))
-      
-      return newTask
-    } catch (error) {
+    } catch (error: any) {
       console.error('创建任务失败:', error)
       set({ loading: false })
       throw error
@@ -251,48 +133,25 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     set({ loading: true })
     
     try {
-      // 模拟API调用延迟
-      await new Promise(resolve => setTimeout(resolve, 600))
+      // 调用真实API
+      const response = await taskAPI.updateTask(taskId, updates)
       
-      const taskIndex = mockTasks.findIndex(task => task.id === taskId)
-      if (taskIndex === -1) {
-        throw new Error('任务不存在')
+      if (response.data && response.data.success) {
+        const updatedTask = response.data.data
+        
+        set(state => ({
+          tasks: state.tasks.map(task => 
+            task.id === taskId ? updatedTask : task
+          ),
+          currentTask: state.currentTask?.id === taskId ? updatedTask : state.currentTask,
+          loading: false
+        }))
+        
+        return updatedTask
+      } else {
+        throw new Error(response.data?.message || '更新任务失败')
       }
-      
-      // 如果更新了负责人，需要同时更新负责人姓名
-      let assigneeName = mockTasks[taskIndex].assigneeName
-      if (updates.assignee && updates.assignee !== mockTasks[taskIndex].assignee) {
-        // 根据用户ID查找用户名
-        const userMap: Record<string, string> = {
-          '1': '系统管理员',
-          '2': '开发工程师',
-          '3': '测试工程师',
-          '4': '产品经理',
-          '5': '项目经理',
-          '6': '质量工程师'
-        }
-        assigneeName = userMap[updates.assignee] || '未知用户'
-      }
-      
-      const updatedTask = {
-        ...mockTasks[taskIndex],
-        ...updates,
-        assigneeName, // 确保负责人姓名也被更新
-        updatedAt: new Date().toISOString()
-      }
-      
-      mockTasks[taskIndex] = updatedTask
-      
-      set(state => ({
-        tasks: state.tasks.map(task => 
-          task.id === taskId ? updatedTask : task
-        ),
-        currentTask: state.currentTask?.id === taskId ? updatedTask : state.currentTask,
-        loading: false
-      }))
-      
-      return updatedTask
-    } catch (error) {
+    } catch (error: any) {
       console.error('更新任务失败:', error)
       set({ loading: false })
       throw error
@@ -304,22 +163,19 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     set({ loading: true })
     
     try {
-      // 模拟API调用延迟
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // 调用真实API
+      const response = await taskAPI.deleteTask(taskId)
       
-      const taskIndex = mockTasks.findIndex(task => task.id === taskId)
-      if (taskIndex === -1) {
-        throw new Error('任务不存在')
+      if (response.data && response.data.success) {
+        set(state => ({
+          tasks: state.tasks.filter(task => task.id !== taskId),
+          currentTask: state.currentTask?.id === taskId ? null : state.currentTask,
+          loading: false
+        }))
+      } else {
+        throw new Error(response.data?.message || '删除任务失败')
       }
-      
-      mockTasks.splice(taskIndex, 1)
-      
-      set(state => ({
-        tasks: state.tasks.filter(task => task.id !== taskId),
-        currentTask: state.currentTask?.id === taskId ? null : state.currentTask,
-        loading: false
-      }))
-    } catch (error) {
+    } catch (error: any) {
       console.error('删除任务失败:', error)
       set({ loading: false })
       throw error
@@ -331,45 +187,25 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     set({ loading: true })
     
     try {
-      // 模拟API调用延迟
-      await new Promise(resolve => setTimeout(resolve, 600))
+      // 调用真实API
+      const response = await taskAPI.assignTask(request.taskId, request.assignee)
       
-      const taskIndex = mockTasks.findIndex(task => task.id === request.taskId)
-      if (taskIndex === -1) {
-        throw new Error('任务不存在')
+      if (response.data && response.data.success) {
+        const updatedTask = response.data.data
+        
+        set(state => ({
+          tasks: state.tasks.map(task => 
+            task.id === request.taskId ? updatedTask : task
+          ),
+          currentTask: state.currentTask?.id === request.taskId ? updatedTask : state.currentTask,
+          loading: false
+        }))
+        
+        return updatedTask
+      } else {
+        throw new Error(response.data?.message || '分配任务失败')
       }
-      
-      // 根据用户ID查找用户名
-      const userMap: Record<string, string> = {
-        '1': '系统管理员',
-        '2': '开发工程师',
-        '3': '测试工程师',
-        '4': '产品经理',
-        '5': '项目经理',
-        '6': '质量工程师'
-      }
-      const assigneeName = userMap[request.assignee] || '未知用户'
-      
-      const updatedTask: Task = {
-        ...mockTasks[taskIndex],
-        assignee: request.assignee,
-        assigneeName, // 确保负责人姓名也被更新
-        status: 'todo' as TaskStatus,
-        updatedAt: new Date().toISOString()
-      }
-      
-      mockTasks[taskIndex] = updatedTask
-      
-      set(state => ({
-        tasks: state.tasks.map(task => 
-          task.id === request.taskId ? updatedTask : task
-        ),
-        currentTask: state.currentTask?.id === request.taskId ? updatedTask : state.currentTask,
-        loading: false
-      }))
-      
-      return updatedTask
-    } catch (error) {
+    } catch (error: any) {
       console.error('分配任务失败:', error)
       set({ loading: false })
       throw error
@@ -381,35 +217,30 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     set({ loading: true })
     
     try {
-      // 模拟API调用延迟
-      await new Promise(resolve => setTimeout(resolve, 600))
-      
-      const taskIndex = mockTasks.findIndex(task => task.id === request.taskId)
-      if (taskIndex === -1) {
-        throw new Error('任务不存在')
-      }
-      
-      const updatedTask: Task = {
-        ...mockTasks[taskIndex],
+      // 调用真实API - 这里需要后端提供进度更新API
+      // 暂时使用更新任务API
+      const response = await taskAPI.updateTask(request.taskId, {
         progress: request.progress,
-        status: request.progress >= 100 ? 'completed' as TaskStatus : 
-                request.progress > 0 ? 'in_progress' as TaskStatus : 'todo' as TaskStatus,
-        updatedAt: new Date().toISOString(),
-        completedAt: request.progress >= 100 ? new Date().toISOString() : undefined
+        status: request.progress >= 100 ? 'completed' : 
+                request.progress > 0 ? 'in_progress' : 'todo'
+      })
+      
+      if (response.data && response.data.success) {
+        const updatedTask = response.data.data
+        
+        set(state => ({
+          tasks: state.tasks.map(task => 
+            task.id === request.taskId ? updatedTask : task
+          ),
+          currentTask: state.currentTask?.id === request.taskId ? updatedTask : state.currentTask,
+          loading: false
+        }))
+        
+        return updatedTask
+      } else {
+        throw new Error(response.data?.message || '更新任务进度失败')
       }
-      
-      mockTasks[taskIndex] = updatedTask
-      
-      set(state => ({
-        tasks: state.tasks.map(task => 
-          task.id === request.taskId ? updatedTask : task
-        ),
-        currentTask: state.currentTask?.id === request.taskId ? updatedTask : state.currentTask,
-        loading: false
-      }))
-      
-      return updatedTask
-    } catch (error) {
+    } catch (error: any) {
       console.error('更新任务进度失败:', error)
       set({ loading: false })
       throw error
@@ -421,46 +252,45 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     set({ loading: true })
     
     try {
-      // 模拟API调用延迟
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      operation.taskIds.forEach(taskId => {
-        const taskIndex = mockTasks.findIndex(task => task.id === taskId)
-        if (taskIndex !== -1) {
-          const task = mockTasks[taskIndex]
-          
-          switch (operation.operation) {
-            case 'assign':
-              if (operation.assignee) {
-                task.assignee = operation.assignee
-              }
-              break
-            case 'changeStatus':
-              if (operation.status) {
-                task.status = operation.status
-              }
-              break
-            case 'changePriority':
-              if (operation.priority) {
-                task.priority = operation.priority
-              }
-              break
-            case 'delete':
-              mockTasks.splice(taskIndex, 1)
-              break
+      // 根据操作类型调用相应的API
+      switch (operation.operation) {
+        case 'assign':
+          // 批量分配 - 逐个调用API
+          for (const taskId of operation.taskIds) {
+            if (operation.assignee) {
+              await taskAPI.assignTask(taskId, operation.assignee)
+            }
           }
-          
-          if (operation.operation !== 'delete') {
-            task.updatedAt = new Date().toISOString()
+          break
+        case 'changeStatus':
+          // 批量更改状态 - 逐个调用API
+          for (const taskId of operation.taskIds) {
+            if (operation.status) {
+              await taskAPI.updateTask(taskId, { status: operation.status })
+            }
           }
-        }
-      })
+          break
+        case 'changePriority':
+          // 批量更改优先级 - 逐个调用API
+          for (const taskId of operation.taskIds) {
+            if (operation.priority) {
+              await taskAPI.updateTask(taskId, { priority: operation.priority })
+            }
+          }
+          break
+        case 'delete':
+          // 批量删除 - 逐个调用API
+          for (const taskId of operation.taskIds) {
+            await taskAPI.deleteTask(taskId)
+          }
+          break
+      }
       
-      set(state => ({
-        tasks: state.tasks.filter(task => !operation.taskIds.includes(task.id)),
-        loading: false
-      }))
-    } catch (error) {
+      // 重新获取任务列表
+      await get().fetchTasks(get().filters, get().pagination.page, get().pagination.pageSize)
+      
+      set({ loading: false })
+    } catch (error: any) {
       console.error('批量操作失败:', error)
       set({ loading: false })
       throw error
@@ -469,31 +299,36 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
   // 根据ID获取任务
   getTaskById: (taskId: string) => {
-    return mockTasks.find(task => task.id === taskId) || null
+    return get().tasks.find(task => task.id === taskId) || null
   },
 
   // 获取统计信息
   getStatistics: async () => {
     try {
-      // 模拟API调用延迟
+      // 调用真实API - 这里需要后端提供统计API
+      // 暂时使用模拟数据，等待后端实现
       await new Promise(resolve => setTimeout(resolve, 300))
       
-      const today = new Date()
-      const thisWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
-      
       const statistics: TaskStatistics = {
-        total: mockTasks.length,
-        todo: mockTasks.filter(task => task.status === 'todo').length,
-        inProgress: mockTasks.filter(task => task.status === 'in_progress').length,
-        review: mockTasks.filter(task => task.status === 'review').length,
-        completed: mockTasks.filter(task => task.status === 'completed').length,
-        cancelled: mockTasks.filter(task => task.status === 'cancelled').length,
-        overdue: mockTasks.filter(task => new Date(task.dueDate) < today && task.status !== 'completed').length,
-        dueToday: mockTasks.filter(task => {
+        total: get().tasks.length,
+        todo: get().tasks.filter(task => task.status === 'todo').length,
+        inProgress: get().tasks.filter(task => task.status === 'in_progress').length,
+        review: get().tasks.filter(task => task.status === 'review').length,
+        completed: get().tasks.filter(task => task.status === 'completed').length,
+        cancelled: get().tasks.filter(task => task.status === 'cancelled').length,
+        overdue: get().tasks.filter(task => {
+          const today = new Date()
+          const dueDate = new Date(task.dueDate)
+          return dueDate < today && task.status !== 'completed'
+        }).length,
+        dueToday: get().tasks.filter(task => {
+          const today = new Date()
           const dueDate = new Date(task.dueDate)
           return dueDate.toDateString() === today.toDateString()
         }).length,
-        dueThisWeek: mockTasks.filter(task => {
+        dueThisWeek: get().tasks.filter(task => {
+          const today = new Date()
+          const thisWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
           const dueDate = new Date(task.dueDate)
           return dueDate >= today && dueDate <= thisWeek
         }).length
@@ -501,7 +336,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       
       set({ statistics })
       return statistics
-    } catch (error) {
+    } catch (error: any) {
       console.error('获取统计信息失败:', error)
       throw error
     }

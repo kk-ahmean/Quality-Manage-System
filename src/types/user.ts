@@ -46,13 +46,23 @@ export interface RolePermissions {
   [key: string]: Permission[]
 }
 
+export interface TeamMember {
+  user: string
+  role: 'leader' | 'member' | 'observer'
+  joinedAt?: string
+}
+
 export interface Team {
   id: string
   name: string
   description?: string
-  members: string[] // 用户ID数组
+  members: TeamMember[] // 团队成员数组
   leader: string // 团队负责人ID
-  permissions?: string[] // 团队权限
+  department?: string
+  status?: string
+  tags?: string[]
+  settings?: any
+  sequenceNumber?: number // 序号
   createdAt: string
   updatedAt: string
 }

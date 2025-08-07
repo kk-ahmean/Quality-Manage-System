@@ -1,23 +1,17 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: '/Quality-Manage-System/',
   plugins: [react()],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
-  },
   server: {
     port: 3000,
-    open: true,
+    host: true,
+    open: true
   },
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
-  },
+  publicDir: 'public',
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets'
+  }
 }) 

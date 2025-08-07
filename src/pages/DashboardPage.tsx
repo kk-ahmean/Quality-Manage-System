@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Row, Col, Card, Statistic, Progress, Typography, Spin, Select } from 'antd'
+import { Row, Col, Card, Statistic, Progress, Typography, Spin, Select, Space } from 'antd'
 import { 
   BugOutlined, 
   CheckCircleOutlined, 
@@ -11,6 +11,7 @@ import {
 import { Line } from '@ant-design/plots'
 import { useBugStore } from '../stores/bugStore'
 import { useTaskStore } from '../stores/taskStore'
+import { useUserStore } from '../stores/userStore'
 
 const { Title } = Typography
 const { Option } = Select
@@ -39,6 +40,17 @@ const DashboardPage: React.FC = () => {
   const [taskDistributionType, setTaskDistributionType] = useState<'status' | 'priority' | 'assignee'>('status')
   const [bugTrendPeriod, setBugTrendPeriod] = useState<'3' | '7' | '15' | '30'>('30')
   const [taskTrendPeriod, setTaskTrendPeriod] = useState<'3' | '7' | '15' | '30'>('30')
+  
+  // 三级类目筛选状态
+  const [bugCategoryLevel3, setBugCategoryLevel3] = useState<string>('全部')
+  const [taskCategoryLevel3, setTaskCategoryLevel3] = useState<string>('全部')
+
+  // 1. 在状态管理区增加趋势栏的三级类目筛选状态
+  const [bugTrendCategoryLevel3, setBugTrendCategoryLevel3] = useState<string>('全部')
+  const [taskTrendCategoryLevel3, setTaskTrendCategoryLevel3] = useState<string>('全部')
+
+  // 获取所有用户列表
+  const { users } = useUserStore()
 
   // 计算Bug统计数据
   const bugStatistics = useMemo(() => {
@@ -57,9 +69,15 @@ const DashboardPage: React.FC = () => {
       }
     }
     
-    const total = bugsToUse.length
-    const resolved = bugsToUse.filter(bug => bug.status === '已解决' || bug.status === '已关闭').length
-    const inProgress = bugsToUse.filter(bug => bug.status === '处理中').length
+    // 根据三级类目筛选Bug
+    let filteredBugs = bugsToUse
+    if (bugCategoryLevel3 !== '全部') {
+      filteredBugs = bugsToUse.filter(bug => bug.categoryLevel3 === bugCategoryLevel3)
+    }
+    
+    const total = filteredBugs.length
+    const resolved = filteredBugs.filter(bug => bug.status === '已解决' || bug.status === '已关闭').length
+    const inProgress = filteredBugs.filter(bug => bug.status === '处理中').length
     const unresolved = total - resolved
     const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0
     
@@ -69,11 +87,34 @@ const DashboardPage: React.FC = () => {
       inProgress,
       unresolved,
       resolutionRate,
-      bugsStatus: bugsToUse.map(b => b.status)
+      bugsStatus: filteredBugs.map(b => b.status),
+      categoryFilter: bugCategoryLevel3
     })
     
     return { total, resolved, inProgress, unresolved, resolutionRate }
+  }, [bugs, bugCategoryLevel3])
+
+  // 获取Bug三级类目选项
+  const bugCategoryOptions = useMemo(() => {
+    const currentBugs = useBugStore.getState().bugs
+    const bugsToUse = bugs.length > 0 ? bugs : currentBugs
+    
+    if (!bugsToUse || bugsToUse.length === 0) return ['全部']
+    
+    const categories = [...new Set(bugsToUse.map(bug => bug.categoryLevel3).filter(Boolean))]
+    return ['全部', ...categories]
   }, [bugs])
+
+  // 获取任务三级类目选项
+  const taskCategoryOptions = useMemo(() => {
+    const currentTasks = useTaskStore.getState().tasks
+    const tasksToUse = tasks.length > 0 ? tasks : currentTasks
+    
+    if (!tasksToUse || tasksToUse.length === 0) return ['全部']
+    
+    const categories = [...new Set(tasksToUse.map(task => task.categoryLevel3).filter(Boolean))]
+    return ['全部', ...categories]
+  }, [tasks])
 
   // 计算任务统计数据
   const taskStatistics = useMemo(() => {
@@ -92,10 +133,16 @@ const DashboardPage: React.FC = () => {
       }
     }
     
-    const total = tasksToUse.length
-    const completed = tasksToUse.filter(task => task.status === 'completed').length
-    const inProgress = tasksToUse.filter(task => task.status === 'in_progress').length
-    const todo = tasksToUse.filter(task => task.status === 'todo').length
+    // 根据三级类目筛选任务
+    let filteredTasks = tasksToUse
+    if (taskCategoryLevel3 !== '全部') {
+      filteredTasks = tasksToUse.filter(task => task.categoryLevel3 === taskCategoryLevel3)
+    }
+    
+    const total = filteredTasks.length
+    const completed = filteredTasks.filter(task => task.status === 'completed').length
+    const inProgress = filteredTasks.filter(task => task.status === 'in_progress').length
+    const todo = filteredTasks.filter(task => task.status === 'todo').length
     const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0
     
     console.log('任务统计数据计算:', {
@@ -104,11 +151,12 @@ const DashboardPage: React.FC = () => {
       inProgress,
       todo,
       completionRate,
-      tasksStatus: tasksToUse.map(t => t.status)
+      tasksStatus: filteredTasks.map(t => t.status),
+      categoryFilter: taskCategoryLevel3
     })
     
     return { total, completed, inProgress, todo, completionRate }
-  }, [tasks])
+  }, [tasks, taskCategoryLevel3])
 
   // Bug分布数据
   const bugDistributionData = useMemo(() => {
@@ -121,29 +169,35 @@ const DashboardPage: React.FC = () => {
       return []
     }
     
+    // 根据三级类目筛选Bug
+    let filteredBugs = bugsToUse
+    if (bugCategoryLevel3 !== '全部') {
+      filteredBugs = bugsToUse.filter(bug => bug.categoryLevel3 === bugCategoryLevel3)
+    }
+    
     let data: Array<{ type: string, value: number }> = []
     switch (bugDistributionType) {
       case 'status':
         const statusMap: Record<string, number> = {}
-        bugsToUse.forEach(bug => { statusMap[bug.status] = (statusMap[bug.status] || 0) + 1 })
+        filteredBugs.forEach(bug => { statusMap[bug.status] = (statusMap[bug.status] || 0) + 1 })
         data = Object.entries(statusMap).map(([type, value]) => ({ type, value }))
         console.log('Bug状态分布:', statusMap)
         break
       case 'type':
         const typeMap: Record<string, number> = {}
-        bugsToUse.forEach(bug => { typeMap[bug.type] = (typeMap[bug.type] || 0) + 1 })
+        filteredBugs.forEach(bug => { typeMap[bug.type] = (typeMap[bug.type] || 0) + 1 })
         data = Object.entries(typeMap).map(([type, value]) => ({ type, value }))
         console.log('Bug类型分布:', typeMap)
         break
       case 'responsibility':
         const responsibilityMap: Record<string, number> = {}
-        bugsToUse.forEach(bug => { responsibilityMap[bug.responsibility] = (responsibilityMap[bug.responsibility] || 0) + 1 })
+        filteredBugs.forEach(bug => { responsibilityMap[bug.responsibility] = (responsibilityMap[bug.responsibility] || 0) + 1 })
         data = Object.entries(responsibilityMap).map(([type, value]) => ({ type, value }))
         console.log('Bug责任归属分布:', responsibilityMap)
         break
       case 'priority':
         const priorityMap: Record<string, number> = {}
-        bugsToUse.forEach(bug => { priorityMap[bug.priority] = (priorityMap[bug.priority] || 0) + 1 })
+        filteredBugs.forEach(bug => { priorityMap[bug.priority] = (priorityMap[bug.priority] || 0) + 1 })
         data = Object.entries(priorityMap).map(([type, value]) => ({ type, value }))
         console.log('Bug优先级分布:', priorityMap)
         break
@@ -152,25 +206,30 @@ const DashboardPage: React.FC = () => {
     }
     
     const result = data.sort((a, b) => b.value - a.value)
-    console.log('Bug分布数据:', { type: bugDistributionType, data: result, bugsCount: bugsToUse.length })
+    console.log('Bug分布数据:', { 
+      type: bugDistributionType, 
+      data: result, 
+      bugsCount: filteredBugs.length,
+      categoryFilter: bugCategoryLevel3
+    })
     return result
-  }, [bugs, bugDistributionType])
+  }, [bugs, bugDistributionType, bugCategoryLevel3])
 
-  // Bug趋势数据（按创建日期显示未关闭Bug数）
+  // 2. 修改Bug趋势数据useMemo，支持三级类目筛选
   const bugTrendData = useMemo(() => {
     if (!bugs || bugs.length === 0) return []
-    
+    let filteredBugs = bugs
+    if (bugTrendCategoryLevel3 !== '全部') {
+      filteredBugs = bugs.filter(bug => bug.categoryLevel3 === bugTrendCategoryLevel3)
+    }
     // 按日期统计未关闭Bug数
     const trendMap: Record<string, number> = {}
-    bugs.forEach(bug => {
-      // 所有状态不为"已关闭"的Bug都算作未关闭Bug
+    filteredBugs.forEach(bug => {
       if (bug.status !== '已关闭') {
-        const date = bug.createdAt.slice(0, 10) // 取日期部分 YYYY-MM-DD
+        const date = bug.createdAt.slice(0, 10)
         trendMap[date] = (trendMap[date] || 0) + 1
       }
     })
-    
-    // 根据选择的时间段生成连续的日期序列
     const today = new Date()
     const days = parseInt(bugTrendPeriod)
     const dateArray = []
@@ -180,72 +239,80 @@ const DashboardPage: React.FC = () => {
       const dateStr = date.toISOString().slice(0, 10)
       dateArray.push(dateStr)
     }
-    
-    // 填充数据，确保每天都有数据点
     const result = dateArray.map(date => ({
       date,
       value: trendMap[date] || 0,
       type: '未关闭Bug'
     }))
-    
-    console.log('Bug趋势数据:', { 
-      totalBugs: bugs.length, 
-      closedBugs: bugs.filter(b => b.status === '已关闭').length,
-      trendData: result,
-      rawTrendMap: trendMap,
-      period: bugTrendPeriod
-    })
-    
     return result
-  }, [bugs, bugTrendPeriod])
+  }, [bugs, bugTrendPeriod, bugTrendCategoryLevel3])
 
   // 任务分布数据
   const taskDistributionData = useMemo(() => {
     if (!tasks || tasks.length === 0) return []
     
+    // 根据三级类目筛选任务
+    let filteredTasks = tasks
+    if (taskCategoryLevel3 !== '全部') {
+      filteredTasks = tasks.filter(task => task.categoryLevel3 === taskCategoryLevel3)
+    }
+    
     let data: Array<{ type: string, value: number }> = []
     switch (taskDistributionType) {
       case 'status':
         const statusMap: Record<string, number> = {}
-        tasks.forEach(task => { statusMap[task.status] = (statusMap[task.status] || 0) + 1 })
+        filteredTasks.forEach(task => { statusMap[task.status] = (statusMap[task.status] || 0) + 1 })
         data = Object.entries(statusMap).map(([type, value]) => ({ type, value }))
         break
       case 'priority':
         const priorityMap: Record<string, number> = {}
-        tasks.forEach(task => { priorityMap[task.priority] = (priorityMap[task.priority] || 0) + 1 })
+        filteredTasks.forEach(task => { priorityMap[task.priority] = (priorityMap[task.priority] || 0) + 1 })
         data = Object.entries(priorityMap).map(([type, value]) => ({ type, value }))
         break
       case 'assignee':
-        const assigneeMap: Record<string, number> = {}
-        tasks.forEach(task => {
-          const name = task.assigneeName || task.assignee || '未分配'
-          assigneeMap[name] = (assigneeMap[name] || 0) + 1
-        })
-        data = Object.entries(assigneeMap).map(([type, value]) => ({ type, value }))
+        const assigneeMap: Record<string, number> = {};
+        filteredTasks.forEach(task => {
+          let name: any = task.assigneeName || task.assignee || '未分配';
+          // 兜底处理：如果不是字符串，优先取常见字段
+          if (typeof name !== 'string') {
+            if (name && typeof name === 'object') {
+              name = name.assigneeName || name.name || name.realName || name.nickName || name.username || name.id || name._id || JSON.stringify(name);
+            } else {
+              name = String(name);
+            }
+          }
+          assigneeMap[name] = (assigneeMap[name] || 0) + 1;
+        });
+        data = Object.entries(assigneeMap).map(([type, value]) => ({ type, value }));
         break
       default:
         break
     }
     
     const result = data.sort((a, b) => b.value - a.value)
-    console.log('任务分布数据:', { type: taskDistributionType, data: result, tasksCount: tasks.length })
+    console.log('任务分布数据:', { 
+      type: taskDistributionType, 
+      data: result, 
+      tasksCount: filteredTasks.length,
+      categoryFilter: taskCategoryLevel3
+    })
     return result
-  }, [tasks, taskDistributionType])
+  }, [tasks, taskDistributionType, taskCategoryLevel3])
 
-  // 任务趋势数据（按创建日期显示未完成任务数）
+  // 3. 修改任务趋势数据useMemo，支持三级类目筛选
   const taskTrendData = useMemo(() => {
     if (!tasks || tasks.length === 0) return []
-    
-    // 按日期统计未完成任务数
+    let filteredTasks = tasks
+    if (taskTrendCategoryLevel3 !== '全部') {
+      filteredTasks = tasks.filter(task => task.categoryLevel3 === taskTrendCategoryLevel3)
+    }
     const trendMap: Record<string, number> = {}
-    tasks.forEach(task => {
+    filteredTasks.forEach(task => {
       if (task.status !== 'completed') {
-        const date = task.createdAt.slice(0, 10) // 取日期部分 YYYY-MM-DD
+        const date = task.createdAt.slice(0, 10)
         trendMap[date] = (trendMap[date] || 0) + 1
       }
     })
-    
-    // 根据选择的时间段生成连续的日期序列
     const today = new Date()
     const days = parseInt(taskTrendPeriod)
     const dateArray = []
@@ -255,24 +322,38 @@ const DashboardPage: React.FC = () => {
       const dateStr = date.toISOString().slice(0, 10)
       dateArray.push(dateStr)
     }
-    
-    // 填充数据，确保每天都有数据点
     const result = dateArray.map(date => ({
       date,
       value: trendMap[date] || 0,
       type: '未完成任务'
     }))
-    
-    console.log('任务趋势数据:', { 
-      totalTasks: tasks.length, 
-      completedTasks: tasks.filter(t => t.status === 'completed').length,
-      trendData: result,
-      rawTrendMap: trendMap,
-      period: taskTrendPeriod
-    })
-    
     return result
-  }, [tasks, taskTrendPeriod])
+  }, [tasks, taskTrendPeriod, taskTrendCategoryLevel3])
+
+  // 任务分布栏负责人标签兜底处理
+  const getAssigneeLabel = (type: any) => {
+    if (!type) return '未分配';
+    if (typeof type === 'string') return type;
+    if (typeof type === 'object') {
+      // 控制台输出异常对象，便于排查
+      console.log('Assignee标签异常对象:', type);
+      // 优先取常见姓名字段
+      if (typeof type.assigneeName === 'string' && type.assigneeName) return type.assigneeName;
+      if (typeof type.name === 'string' && type.name) return type.name;
+      if (typeof type.realName === 'string' && type.realName) return type.realName;
+      if (typeof type.nickName === 'string' && type.nickName) return type.nickName;
+      if (typeof type.username === 'string' && type.username) return type.username;
+      // 兼容 id 显示
+      if (typeof type.id === 'string' && type.id) return type.id;
+      if (typeof type._id === 'string' && type._id) return type._id;
+      try {
+        return JSON.stringify(type);
+      } catch {
+        return '未分配';
+      }
+    }
+    return String(type);
+  };
 
   // 自动刷新数据
   useEffect(() => {
@@ -377,16 +458,28 @@ const DashboardPage: React.FC = () => {
             <Card
               title="Bug分布"
               extra={
-                <Select
-                  value={bugDistributionType}
-                  onChange={setBugDistributionType}
-                  style={{ width: 120 }}
-                >
-                  <Option value="status">按状态</Option>
-                  <Option value="type">按类型</Option>
-                  <Option value="responsibility">按责任归属</Option>
-                  <Option value="priority">按优先级</Option>
-                </Select>
+                <Space>
+                  <Select
+                    value={bugCategoryLevel3}
+                    onChange={setBugCategoryLevel3}
+                    style={{ width: 120 }}
+                    placeholder="选择三级类目"
+                  >
+                    {bugCategoryOptions.map(option => (
+                      <Option key={option} value={option}>{option}</Option>
+                    ))}
+                  </Select>
+                  <Select
+                    value={bugDistributionType}
+                    onChange={setBugDistributionType}
+                    style={{ width: 120 }}
+                  >
+                    <Option value="status">按状态</Option>
+                    <Option value="type">按类型</Option>
+                    <Option value="responsibility">按责任归属</Option>
+                    <Option value="priority">按优先级</Option>
+                  </Select>
+                </Space>
               }
               style={{ marginBottom: 24 }}
             >
@@ -484,16 +577,28 @@ const DashboardPage: React.FC = () => {
              <Card 
                title="Bug趋势"
                extra={
-                 <Select
-                   value={bugTrendPeriod}
-                   onChange={setBugTrendPeriod}
-                   style={{ width: 120 }}
-                 >
-                   <Option value="3">近3天</Option>
-                   <Option value="7">近7天</Option>
-                   <Option value="15">近15天</Option>
-                   <Option value="30">近30天</Option>
-                 </Select>
+                 <Space>
+                   <Select
+                     value={bugTrendCategoryLevel3}
+                     onChange={setBugTrendCategoryLevel3}
+                     style={{ width: 120 }}
+                     placeholder="选择三级类目"
+                   >
+                     {bugCategoryOptions.map(option => (
+                       <Option key={option} value={option}>{option}</Option>
+                     ))}
+                   </Select>
+                   <Select
+                     value={bugTrendPeriod}
+                     onChange={setBugTrendPeriod}
+                     style={{ width: 120 }}
+                   >
+                     <Option value="3">近3天</Option>
+                     <Option value="7">近7天</Option>
+                     <Option value="15">近15天</Option>
+                     <Option value="30">近30天</Option>
+                   </Select>
+                 </Space>
                }
              >
                {bugTrendData.length > 0 ? (
@@ -595,15 +700,27 @@ const DashboardPage: React.FC = () => {
             <Card
               title="任务分布"
               extra={
-                <Select
-                  value={taskDistributionType}
-                  onChange={setTaskDistributionType}
-                  style={{ width: 120 }}
-                >
-                  <Option value="status">按状态</Option>
-                  <Option value="priority">按优先级</Option>
-                  <Option value="assignee">按负责人</Option>
-                </Select>
+                <Space>
+                  <Select
+                    value={taskCategoryLevel3}
+                    onChange={setTaskCategoryLevel3}
+                    style={{ width: 120 }}
+                    placeholder="选择三级类目"
+                  >
+                    {taskCategoryOptions.map(option => (
+                      <Option key={option} value={option}>{option}</Option>
+                    ))}
+                  </Select>
+                  <Select
+                    value={taskDistributionType}
+                    onChange={setTaskDistributionType}
+                    style={{ width: 120 }}
+                  >
+                    <Option value="status">按状态</Option>
+                    <Option value="priority">按优先级</Option>
+                    <Option value="assignee">按负责人</Option>
+                  </Select>
+                </Space>
               }
               style={{ marginBottom: 24 }}
             >
@@ -641,7 +758,11 @@ const DashboardPage: React.FC = () => {
                             marginRight: '6px',
                             flexShrink: 0
                           }}></span>
-                          <span style={{ flex: 1, marginRight: '4px' }}>{getChineseLabel(item.type)}</span>
+                          <span style={{ flex: 1, marginRight: '4px' }}>
+                            {taskDistributionType === 'assignee'
+                              ? getAssigneeLabel(item.type)
+                              : getChineseLabel(item.type)}
+                          </span>
                           <span style={{ 
                             fontWeight: 'bold',
                             color: 'var(--text-color-primary)',
@@ -712,16 +833,28 @@ const DashboardPage: React.FC = () => {
              <Card 
                title="任务趋势"
                extra={
-                 <Select
-                   value={taskTrendPeriod}
-                   onChange={setTaskTrendPeriod}
-                   style={{ width: 120 }}
-                 >
-                   <Option value="3">近3天</Option>
-                   <Option value="7">近7天</Option>
-                   <Option value="15">近15天</Option>
-                   <Option value="30">近30天</Option>
-                 </Select>
+                 <Space>
+                   <Select
+                     value={taskTrendCategoryLevel3}
+                     onChange={setTaskTrendCategoryLevel3}
+                     style={{ width: 120 }}
+                     placeholder="选择三级类目"
+                   >
+                     {taskCategoryOptions.map(option => (
+                       <Option key={option} value={option}>{option}</Option>
+                     ))}
+                   </Select>
+                   <Select
+                     value={taskTrendPeriod}
+                     onChange={setTaskTrendPeriod}
+                     style={{ width: 120 }}
+                   >
+                     <Option value="3">近3天</Option>
+                     <Option value="7">近7天</Option>
+                     <Option value="15">近15天</Option>
+                     <Option value="30">近30天</Option>
+                   </Select>
+                 </Space>
                }
              >
                {taskTrendData.length > 0 ? (

@@ -22,6 +22,17 @@ const actionTypes = [
   { label: '任务管理', value: 'TASK' },
   { label: '团队管理', value: 'TEAM' },
   { label: '项目管理', value: 'PROJECT' },
+  { label: '任务创建', value: 'CREATE_TASK' },
+  { label: '任务更新', value: 'UPDATE_TASK' },
+  { label: '任务删除', value: 'DELETE_TASK' },
+  { label: '任务分配', value: 'ASSIGN_TASK' },
+  { label: '任务状态更新', value: 'UPDATE_TASK_STATUS' },
+  { label: '项目创建', value: 'CREATE_PROJECT' },
+  { label: '项目更新', value: 'UPDATE_PROJECT' },
+  { label: '项目删除', value: 'DELETE_PROJECT' },
+  { label: '团队创建', value: 'CREATE_TEAM' },
+  { label: '团队更新', value: 'UPDATE_TEAM' },
+  { label: '团队删除', value: 'DELETE_TEAM' },
 ];
 
 // 示例数据结构

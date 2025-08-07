@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { User } from '../types/user'
+import { authAPI } from '../services/api'
 
 // 扩展Window接口以包含systemLogs属性
 declare global {
@@ -129,55 +130,36 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true, error: null })
         
         try {
-          // 模拟API调用延迟
-          await new Promise(resolve => setTimeout(resolve, 1000))
+          // 调用真实API
+          const response = await authAPI.login({ username, password })
           
-          // 从全局用户数据中查找用户
-          const user = globalUsers.find(u => u.username === username)
-          
-          // 调试信息
-          console.log('登录尝试:', {
-            username,
-            password,
-            foundUser: user,
-            allUsers: globalUsers.map(u => ({ username: u.username, hasPassword: !!u.password }))
-          })
-          
-          if (!user) {
-            throw new Error('用户名或密码错误')
-          }
-          
-          // 验证用户密码
-          if (user.password !== password) {
-            console.log('密码验证失败:', {
-              expected: user.password,
-              provided: password
+          // 检查响应结构
+          if (response.data && response.data.success) {
+            const { user, token } = response.data.data
+            
+            // 保存token到localStorage
+            localStorage.setItem('auth-token', token)
+            
+            set({
+              user,
+              token,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null
             })
-            throw new Error('用户名或密码错误')
+            
+            // 记录登录日志
+            console.log(`用户 ${user.name} 登录成功，时间: ${new Date().toLocaleString()}`)
+            logSystemActivity(user.id, 'LOGIN', `用户登录系统`)
+          } else {
+            throw new Error(response.data?.message || '登录失败')
           }
           
-          if (user.status === 'inactive') {
-            throw new Error('账户已被禁用，请联系管理员')
-          }
-          
-          const token = `mock_token_${user.id}_${Date.now()}`
-          
-          set({
-            user,
-            token,
-            isAuthenticated: true,
-            isLoading: false,
-            error: null
-          })
-          
-          // 记录登录日志
-          console.log(`用户 ${user.username} 登录成功，时间: ${new Date().toLocaleString()}`)
-          logSystemActivity(user.id, 'LOGIN', `用户登录系统`)
-          
-        } catch (error) {
+        } catch (error: any) {
+          console.error('登录错误:', error)
           set({
             isLoading: false,
-            error: error instanceof Error ? error.message : '登录失败'
+            error: error.response?.data?.message || error.message || '登录失败'
           })
         }
       },
@@ -185,9 +167,12 @@ export const useAuthStore = create<AuthStore>()(
       logout: () => {
         const { user } = get()
         if (user) {
-          console.log(`用户 ${user.username} 退出登录，时间: ${new Date().toLocaleString()}`)
+          console.log(`用户 ${user.name} 退出登录，时间: ${new Date().toLocaleString()}`)
           logSystemActivity(user.id, 'LOGOUT', `用户退出登录`)
         }
+        
+        // 清除localStorage中的token
+        localStorage.removeItem('auth-token')
         
         set({
           user: null,

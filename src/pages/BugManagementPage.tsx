@@ -32,8 +32,8 @@ const statusColors = {
   重新打开: 'red',
 };
 
-const typeOptions: BugType[] = ['功能缺陷', '性能问题', '界面问题', '兼容性问题', '安全问题', '其他'];
-const responsibilityOptions: BugResponsibility[] = ['软件', '硬件', '结构', 'ID', '包装', '产品', '项目', '供应商'];
+const typeOptions: BugType[] = ['电气性能', '可靠性', '环保', '安规', '资料', '兼容性', '复测与确认', '设备特性', '其它'];
+const responsibilityOptions: BugResponsibility[] = ['软件', '硬件', '结构', 'ID', '包装', '产品', '项目', '供应商', 'DQE', '实验室'];
 const priorityOptions: BugPriority[] = ['P0', 'P1', 'P2', 'P3'];
 const severityOptions: BugSeverity[] = ['S', 'A', 'B', 'C'];
 const statusOptions: BugStatus[] = ['新建', '处理中', '待验证', '已解决', '已关闭', '重新打开'];
@@ -136,14 +136,6 @@ const BugManagementPage: React.FC = () => {
       key: 'assigneeName',
       width: 100,
       render: (name: string, record: Bug) => {
-        // 支持多用户展示
-        if (Array.isArray(record.assignee)) {
-          const userNames = record.assignee.map((id: string) => {
-            const user = users.find((u: any) => u.id === id)
-            return user ? user.name : id
-          }).join('，')
-          return userNames ? <Space><UserOutlined />{userNames}</Space> : <span style={{ color: '#aaa' }}>未分配</span>
-        }
         return name ? <Space><UserOutlined />{name}</Space> : <span style={{ color: '#aaa' }}>未分配</span>
       },
     },
@@ -168,10 +160,9 @@ const BugManagementPage: React.FC = () => {
         <Dropdown
           menu={{
             items: [
-              { key: 'edit', label: '编辑', icon: <EditOutlined />, onClick: () => handleEdit(record) },
+              { key: 'edit', label: '编辑', icon: <EditOutlined />, onClick: async () => await handleEdit(record) },
               { key: 'comment', label: '评论', icon: <CommentOutlined />, onClick: () => setCommentModal({ visible: true, bug: record }) },
-              { type: 'divider' },
-              { key: 'delete', label: '删除', icon: <DeleteOutlined />, danger: true, onClick: () => handleDelete(record.id) },
+              // 删除相关项已移除
             ]
           }}
         >
@@ -185,7 +176,22 @@ const BugManagementPage: React.FC = () => {
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
-      await bugStore.createBug(values);
+      console.log('Bug创建数据:', values); // 调试信息
+      
+      // 根据assignee用户ID查找对应的用户名
+      let assigneeName = '';
+      if (values.assignee) {
+        const user = users.find((u: any) => u.id === values.assignee);
+        assigneeName = user ? user.name : '';
+      }
+      
+      // 添加assigneeName字段
+      const bugData = {
+        ...values,
+        assigneeName: assigneeName
+      };
+      
+      await bugStore.createBug(bugData);
       
       // 记录创建Bug日志
       if (currentUser) {
@@ -197,20 +203,77 @@ const BugManagementPage: React.FC = () => {
       message.success('Bug创建成功');
       bugStore.fetchBugs();
     } catch (e) {
-      message.error('Bug创建失败');
+      console.error('Bug创建失败:', e); // 调试信息
+      message.error('Bug创建失败: ' + (e as Error).message);
     }
   };
 
   // 编辑Bug
-  const handleEdit = (bug: Bug) => {
-    editForm.setFieldsValue(bug);
+  // 检查用户是否有编辑Bug核心字段的权限
+  const canEditBugCoreFields = (bug: Bug | null) => {
+    if (!currentUser || !bug) return false;
+    // 管理员或Bug创建者可以编辑所有字段
+    return currentUser.role === 'admin' || bug.reporter === currentUser.id;
+  };
+
+  const handleEdit = async (bug: Bug) => {
+    // 确保用户数据已加载
+    const userStore = useUserStore.getState();
+    if (userStore.users.length === 0) {
+      await userStore.fetchUsers();
+    }
+    
+    // 重新获取最新的用户列表
+    const currentUsers = useUserStore.getState().users;
+    
+    // 根据assigneeName查找对应的用户ID
+    let assigneeId = '';
+    
+    console.log('开始编辑Bug，原始数据:', bug); // 调试信息
+    console.log('当前用户列表:', currentUsers.map(u => ({ id: u.id, name: u.name }))); // 调试信息
+    
+    if (bug.assigneeName) {
+      // 如果assigneeName存在，根据姓名查找用户ID
+      const user = currentUsers.find((u: any) => u.name === bug.assigneeName.trim());
+      assigneeId = user ? user.id : '';
+      console.log('根据assigneeName查找用户:', bug.assigneeName, '找到用户:', user); // 调试信息
+    } else if (bug.assignee) {
+      // 如果assignee存在，直接使用
+      assigneeId = Array.isArray(bug.assignee) ? bug.assignee[0] || '' : bug.assignee;
+      console.log('使用assignee ID:', assigneeId); // 调试信息
+    }
+    
+    const formValues = {
+      ...bug,
+      assignee: assigneeId
+    };
+    
+    console.log('编辑Bug表单值:', formValues); // 调试信息
+    console.log('设置的assignee值:', assigneeId); // 调试信息
+    
+    editForm.setFieldsValue(formValues);
     setEditModalVisible(true);
     bugStore.setSelectedBug(bug);
   };
   const handleEditSubmit = async () => {
     try {
       const values = await editForm.validateFields();
-      await bugStore.updateBug({ ...values, id: bugStore.selectedBug?.id });
+      
+      // 根据assignee用户ID查找对应的用户名
+      let assigneeName = '';
+      if (values.assignee) {
+        const user = users.find((u: any) => u.id === values.assignee);
+        assigneeName = user ? user.name : '';
+      }
+      
+      // 添加assigneeName字段
+      const bugData = {
+        ...values,
+        id: bugStore.selectedBug?.id,
+        assigneeName: assigneeName
+      };
+      
+      await bugStore.updateBug(bugData);
       
       // 记录更新Bug日志
       if (currentUser) {
@@ -243,72 +306,62 @@ const BugManagementPage: React.FC = () => {
     }
   };
 
-  // 批量删除
-  const handleBatchDelete = async () => {
-    if (selectedRows.length === 0) {
-      message.warning('请选择要删除的Bug');
-      return;
-    }
-
-    try {
-      await Promise.all(selectedRows.map(bug => bugStore.deleteBug(bug.id)));
-      
-      // 记录批量删除Bug日志
-      if (currentUser) {
-        logSystemActivity(currentUser.id, 'BATCH_DELETE_BUG', `批量删除Bug: ${selectedRows.length}个`)
-      }
-      
-      setSelectedRows([]);
-      message.success(`成功删除${selectedRows.length}个Bug`);
-      bugStore.fetchBugs();
-    } catch (error) {
-      message.error('批量删除失败');
-    }
-  };
-
-  // 添加评论
-  const handleAddComment = async () => {
-    if (!commentContent.trim() || !commentModal.bug) {
-      message.warning('请输入评论内容');
-      return;
-    }
-
-    try {
-      if (commentModal.bug) {
-        await bugStore.addBugComment({ bugId: commentModal.bug.id, content: commentContent });
-        
-        // 记录添加评论日志
-        if (currentUser) {
-          logSystemActivity(currentUser.id, 'ADD_COMMENT', `为Bug添加评论: ${commentModal.bug.title}`)
-        }
-        
-        message.success('评论添加成功');
-        setCommentContent('');
-        setCommentModal({ visible: false, bug: null });
-      }
-    } catch (error) {
-      message.error('评论添加失败');
-    }
-  };
-
   // 批量导入处理
   const handleBulkImport = async (data: any[]) => {
     try {
+      console.log('开始批量导入，数据条数:', data.length); // 调试信息
+      
+      // 获取系统中最大的编号
+      const maxSequenceNumber = Math.max(0, ...bugStore.bugs.map(bug => bug.sequenceNumber || 0));
+      console.log('系统中最大编号:', maxSequenceNumber); // 调试信息
+      console.log('系统中所有Bug编号:', bugStore.bugs.map(bug => ({ id: bug.id, sequenceNumber: bug.sequenceNumber }))); // 调试信息
+      
       // 转换导入数据格式
-      const bugsToCreate = data.map(item => ({
-        title: item.title || item['Bug标题'],
-        description: item.description || item['Bug描述'],
-        reproductionSteps: item.reproductionSteps || item['复现步骤'],
-        expectedResult: item.expectedResult || item['预期结果'],
-        actualResult: item.actualResult || item['实际结果'],
-        priority: item.priority || item['优先级'],
-        severity: item.severity || item['严重程度'],
-        type: item.type || item['类型'],
-        responsibility: item.responsibility || item['责任归属'],
-      }));
+      const bugsToCreate = data.map((item, index) => {
+        const newSequenceNumber = maxSequenceNumber + index + 1;
+        console.log(`第${index + 1}条数据编号:`, newSequenceNumber, '标题:', item.title || item['Bug标题']); // 调试信息
+        
+        // 处理负责人字段
+        const assigneeName = item.assigneeName || item['负责人'] || '';
+        let assigneeId = item.assignee || '';
+        
+        // 如果assigneeId为空但有assigneeName，则根据姓名查找用户ID
+        if (!assigneeId && assigneeName) {
+          const user = users.find((u: any) => u.name === assigneeName.trim());
+          assigneeId = user ? user.id : '';
+        }
+        
+        // 处理标签字段
+        const tags = item.tags || item['标签'] || '';
+        
+        return {
+          title: item.title || item['Bug标题'],
+          description: item.description || item['Bug描述'],
+          reproductionSteps: item.reproductionSteps || item['复现步骤'],
+          expectedResult: item.expectedResult || item['预期结果'],
+          actualResult: item.actualResult || item['实际结果'],
+          priority: item.priority || item['优先级'],
+          severity: item.severity || item['严重程度'],
+          type: item.type || item['类型'],
+          responsibility: item.responsibility || item['责任归属'],
+          status: item.status || item['状态'] || '新建', // 设置默认状态
+          assignee: assigneeId, // 设置负责人ID
+          assigneeName: assigneeName, // 设置负责人姓名
+          categoryLevel3: item.categoryLevel3 || item['三级类目'] || '默认类目',
+          model: item.model || item['型号'] || '默认型号',
+          sku: item.sku || item['SKU'] || '默认SKU',
+          hardwareVersion: item.hardwareVersion || item['硬件版本'] || '默认硬件版本',
+          softwareVersion: item.softwareVersion || item['软件版本'] || '默认软件版本',
+          tags: tags, // 设置标签字符串
+          sequenceNumber: newSequenceNumber, // 从最大编号+1开始递增
+        };
+      });
+
+      console.log('准备创建的Bug数据:', bugsToCreate.map(bug => ({ title: bug.title, sequenceNumber: bug.sequenceNumber }))); // 调试信息
 
       // 批量创建Bug
       for (const bug of bugsToCreate) {
+        console.log('创建Bug:', bug.title, '编号:', bug.sequenceNumber); // 调试信息
         await bugStore.createBug(bug);
       }
       
@@ -320,12 +373,13 @@ const BugManagementPage: React.FC = () => {
       message.success(`成功导入 ${bugsToCreate.length} 个Bug`);
       bugStore.fetchBugs();
     } catch (error) {
+      console.error('批量导入失败:', error); // 调试信息
       message.error('批量导入失败，请检查数据格式');
     }
   };
 
   // 批量导出处理
-  const handleBulkExport = (exportType: 'selected' | 'all') => {
+  const handleBulkExport = async (exportType: 'selected' | 'all') => {
     try {
       let bugsToExport: Bug[] = [];
       
@@ -339,8 +393,17 @@ const BugManagementPage: React.FC = () => {
         bugsToExport = bugStore.bugs;
       }
 
-      // 转换数据格式为CSV
-      const csvData: Record<string, string>[] = bugsToExport.map(bug => ({
+      // 按创建时间升序排序，与表格显示顺序完全一致
+      const sortedBugsToExport = [...bugsToExport].sort((a, b) => 
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+
+      console.log('导出Bug数量:', sortedBugsToExport.length); // 调试信息
+      console.log('导出Bug顺序:', sortedBugsToExport.map(bug => ({ id: bug.id, title: bug.title, createdAt: bug.createdAt }))); // 调试信息
+
+      // 转换数据格式为Excel
+      const excelData: Record<string, string>[] = sortedBugsToExport.map((bug, index) => ({
+        '编号': (index + 1).toString(), // 使用导出时的序号，确保与表格显示一致
         'Bug标题': bug.title,
         'Bug描述': bug.description,
         '复现步骤': bug.reproductionSteps,
@@ -351,39 +414,67 @@ const BugManagementPage: React.FC = () => {
         '类型': bug.type,
         '责任归属': bug.responsibility,
         '状态': bug.status,
-        '负责人': Array.isArray(bug.assignee) 
-          ? bug.assignee.map((id: string) => {
-              const user = users.find((u: any) => u.id === id);
-              return user ? user.name : id;
-            }).join('，')
-          : (bug.assigneeName || '未分配'),
+        '三级类目': bug.categoryLevel3 || '-',
+        '型号': bug.model || '-',
+        'SKU': bug.sku || '-',
+        '硬件版本': bug.hardwareVersion || '-',
+        '软件版本': bug.softwareVersion || '-',
+        '标签': Array.isArray(bug.tags) ? bug.tags.join('，') : (bug.tags || '-'),
+        '负责人': bug.assigneeName || '未分配',
         '创建人': bug.reporterName,
         '创建时间': dayjs(bug.createdAt).format('YYYY-MM-DD HH:mm:ss'),
         '更新时间': dayjs(bug.updatedAt).format('YYYY-MM-DD HH:mm:ss')
       }));
 
-      // 生成CSV内容
-      const headers = Object.keys(csvData[0]);
-      const csvContent = [
-        headers.join(','),
-        ...csvData.map(row => 
-          headers.map(header => {
-            const value = row[header] || '';
-            // 处理包含逗号、引号或换行符的值
-            if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
-              return `"${value.replace(/"/g, '""')}"`;
-            }
-            return value;
-          }).join(',')
-        )
-      ].join('\n');
-
-      // 创建并下载文件
-      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      // 动态导入xlsx库
+      const XLSX = await import('xlsx');
+      
+      // 创建工作簿
+      const workbook = XLSX.utils.book_new();
+      
+      // 创建工作表数据
+      const headers = Object.keys(excelData[0]);
+      const worksheetData = [headers, ...excelData.map(row => headers.map(header => row[header]))];
+      
+      // 创建工作表
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+      
+      // 设置列宽
+      const colWidths = [
+        { wch: 8 },   // 编号
+        { wch: 20 },  // Bug标题
+        { wch: 30 },  // Bug描述
+        { wch: 35 },  // 复现步骤
+        { wch: 20 },  // 预期结果
+        { wch: 20 },  // 实际结果
+        { wch: 10 },  // 优先级
+        { wch: 10 },  // 严重程度
+        { wch: 15 },  // 类型
+        { wch: 12 },  // 责任归属
+        { wch: 12 },  // 状态
+        { wch: 15 },  // 三级类目
+        { wch: 15 },  // 型号
+        { wch: 15 },  // SKU
+        { wch: 15 },  // 硬件版本
+        { wch: 15 },  // 软件版本
+        { wch: 15 },  // 标签
+        { wch: 12 },  // 负责人
+        { wch: 12 },  // 创建人
+        { wch: 20 },  // 创建时间
+        { wch: 20 }   // 更新时间
+      ];
+      worksheet['!cols'] = colWidths;
+      
+      // 将工作表添加到工作簿
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Bug数据');
+      
+      // 生成Excel文件并下载
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `bug_export_${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.csv`);
+      link.setAttribute('download', `bug_export_${dayjs().format('YYYY-MM-DD_HH-mm-ss')}.xlsx`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
@@ -392,6 +483,7 @@ const BugManagementPage: React.FC = () => {
 
       message.success(`成功导出 ${bugsToExport.length} 个Bug`);
     } catch (error) {
+      console.error('导出失败:', error);
       message.error('导出失败');
     }
   };
@@ -407,12 +499,59 @@ const BugManagementPage: React.FC = () => {
     { title: '严重程度', dataIndex: 'severity', key: 'severity' },
     { title: '类型', dataIndex: 'type', key: 'type' },
     { title: '责任归属', dataIndex: 'responsibility', key: 'responsibility' },
+    { title: '三级类目', dataIndex: 'categoryLevel3', key: 'categoryLevel3' },
+    { title: '型号', dataIndex: 'model', key: 'model' },
+    { title: 'SKU', dataIndex: 'sku', key: 'sku' },
+    { title: '硬件版本', dataIndex: 'hardwareVersion', key: 'hardwareVersion' },
+    { title: '软件版本', dataIndex: 'softwareVersion', key: 'softwareVersion' },
+    { title: '标签', dataIndex: 'tags', key: 'tags' },
   ];
 
-  // 筛选
-  const handleFilter = (changed: any, all: any) => {
-    bugStore.setFilters(all);
-    bugStore.fetchBugs(all);
+  // 修复筛选逻辑，确保多选字段和关键词筛选正确传递
+  const handleFilter = (_changed: any, all: any) => {
+    // 标准化筛选参数格式
+    const filters = {
+      status: Array.isArray(all.status) ? all.status : all.status ? [all.status] : [],
+      priority: Array.isArray(all.priority) ? all.priority : all.priority ? [all.priority] : [],
+      severity: Array.isArray(all.severity) ? all.severity : all.severity ? [all.severity] : [],
+      type: Array.isArray(all.type) ? all.type : all.type ? [all.type] : [],
+      responsibility: Array.isArray(all.responsibility) ? all.responsibility : all.responsibility ? [all.responsibility] : [],
+      keyword: all.keyword || ''
+    };
+    
+    // 移除空数组和空字符串
+    const cleanFilters = Object.fromEntries(
+      Object.entries(filters).filter(([_, value]) => 
+        Array.isArray(value) ? value.length > 0 : value !== ''
+      )
+    );
+    
+    bugStore.setFilters(cleanFilters);
+    bugStore.fetchBugs(cleanFilters);
+  };
+
+  // 添加评论
+  const handleAddComment = async () => {
+    if (!commentContent.trim() || !commentModal.bug) {
+      message.warning('请输入评论内容');
+      return;
+    }
+    try {
+      if (commentModal.bug) {
+        await bugStore.addBugComment({ bugId: commentModal.bug.id, content: commentContent });
+        // 记录添加评论日志
+        if (currentUser) {
+          logSystemActivity(currentUser.id, 'ADD_COMMENT', `为Bug添加评论: ${commentModal.bug.title}`)
+        }
+        message.success('评论添加成功');
+        setCommentContent('');
+        setCommentModal({ visible: false, bug: null });
+        // 评论后刷新Bug列表并保留筛选条件
+        bugStore.fetchBugs(bugStore.filters);
+      }
+    } catch (error) {
+      message.error('评论添加失败');
+    }
   };
 
   return (
@@ -483,9 +622,9 @@ const BugManagementPage: React.FC = () => {
             批量导出
           </Button>
         </Dropdown>
-        <Button danger disabled={selectedRows.length === 0} onClick={handleBatchDelete}>批量删除</Button>
+        {/* 移除handleBatchDelete和相关按钮，不再支持批量删除 */}
       </Space>
-      <Form layout="inline" onValuesChange={handleFilter} style={{ marginBottom: 16 }}>
+      <Form layout="inline" form={form} onValuesChange={handleFilter} style={{ marginBottom: 16 }}>
         <Form.Item name="status" label="状态">
           <Select allowClear mode="multiple" style={{ width: 120 }} options={statusOptions.map(s => ({ value: s, label: s }))} />
         </Form.Item>
@@ -499,16 +638,28 @@ const BugManagementPage: React.FC = () => {
           <Select allowClear mode="multiple" style={{ width: 120 }} options={typeOptions.map(t => ({ value: t, label: t }))} />
         </Form.Item>
         <Form.Item name="responsibility" label="责任归属">
-          <Select allowClear mode="multiple" style={{ width: 120 }} options={responsibilityOptions.map(r => ({ value: r, label: r }))} />
+          <Select
+            allowClear
+            mode="multiple"
+            style={{ width: 120 }}
+            options={responsibilityOptions.map(r => ({ value: r, label: r }))}
+            onChange={value => {
+              form.setFieldsValue({ responsibility: value });
+              handleFilter({}, form.getFieldsValue());
+            }}
+          />
         </Form.Item>
-        <Form.Item name="keyword" label="关键词">
-          <Input allowClear placeholder="标题/描述" style={{ width: 160 }} />
+        <Form.Item label="关键词" style={{ display: 'flex', alignItems: 'center', marginRight: 0 }}>
+          <Form.Item name="keyword" noStyle>
+            <Input allowClear placeholder="标题/描述" style={{ width: 160, marginRight: 8 }} />
+          </Form.Item>
+          <Button type="primary" onClick={() => handleFilter({}, form.getFieldsValue())}>搜索</Button>
         </Form.Item>
       </Form>
       <Table
         rowKey="id"
         columns={columns}
-        dataSource={bugStore.bugs}
+        dataSource={[...bugStore.bugs].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())}
         loading={bugStore.loading}
         rowSelection={{ selectedRowKeys: selectedRows.map(r => r.id), onChange: (_, rows) => setSelectedRows(rows) }}
         pagination={{
@@ -543,7 +694,7 @@ const BugManagementPage: React.FC = () => {
           <Form.Item name="reproductionSteps" label="复现步骤" rules={[{ required: true, message: '请输入复现步骤' }]}>
             <Input.TextArea rows={3} />
           </Form.Item>
-          <Form.Item name="expectedResult" label="预期结果" rules={[{ required: true, message: '请输入预期结果' }]}>
+          <Form.Item name="expectedResult" label="预期结果">
             <Input />
           </Form.Item>
           <Form.Item name="actualResult" label="实际结果" rules={[{ required: true, message: '请输入实际结果' }]}>
@@ -553,14 +704,13 @@ const BugManagementPage: React.FC = () => {
           {/* 第一行：状态、指派给、优先级 */}
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="status" label="状态" initialValue="新建">
+              <Form.Item name="status" label="状态" initialValue="新建" rules={[{ required: true, message: '请选择状态' }]}>
                 <Select options={statusOptions.map(s => ({ value: s, label: s }))} />
               </Form.Item>
             </Col>
             <Col span={8}>
               <Form.Item name="assignee" label="指派给">
                 <Select
-                  mode="multiple"
                   placeholder="请选择指派人员"
                   allowClear
                   options={users.map((u: any) => ({ value: u.id, label: u.name }))}
@@ -568,7 +718,7 @@ const BugManagementPage: React.FC = () => {
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="priority" label="优先级" rules={[{ required: true, message: '请选择优先级' }]}>
+              <Form.Item name="priority" label="优先级">
                 <Select options={priorityOptions.map(p => ({ value: p, label: p }))} />
               </Form.Item>
             </Col>
@@ -589,6 +739,48 @@ const BugManagementPage: React.FC = () => {
             <Col span={8}>
               <Form.Item name="responsibility" label="责任归属" rules={[{ required: true, message: '请选择责任归属' }]}>
                 <Select options={responsibilityOptions.map(r => ({ value: r, label: r }))} />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          {/* 第三行：三级类目、型号、SKU */}
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="categoryLevel3" label="三级类目" rules={[{ required: true, message: '请输入三级类目' }]}>
+                <Input placeholder="请输入三级类目" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="model" label="型号" rules={[{ required: true, message: '请输入型号' }]}>
+                <Input placeholder="请输入型号" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="sku" label="SKU" rules={[{ required: true, message: '请输入SKU' }]}>
+                <Input placeholder="请输入SKU" />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          {/* 第四行：硬件版本、软件版本、标签 */}
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="hardwareVersion" label="硬件版本" rules={[{ required: true, message: '请输入硬件版本' }]}>
+                <Input placeholder="请输入硬件版本" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="softwareVersion" label="软件版本" rules={[{ required: true, message: '请输入软件版本' }]}>
+                <Input placeholder="请输入软件版本" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="tags" label="标签">
+                <Input 
+                  placeholder="请输入标签" 
+                  maxLength={50}
+                  showCount
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -606,33 +798,32 @@ const BugManagementPage: React.FC = () => {
         style={{ top: 20 }}
       >
         <Form form={editForm} layout="vertical">
-          <Form.Item name="title" label="Bug标题" rules={[{ required: true, message: '请输入标题' }]}>
-            <Input />
+          <Form.Item name="title" label="Bug标题" rules={[{ required: true, message: '请输入标题' }]}> 
+            <Input disabled={!canEditBugCoreFields(bugStore.selectedBug)} />
           </Form.Item>
-          <Form.Item name="description" label="Bug描述" rules={[{ required: true, message: '请输入描述' }]}>
-            <Input.TextArea rows={3} />
+          <Form.Item name="description" label="Bug描述" rules={[{ required: true, message: '请输入描述' }]}> 
+            <Input.TextArea rows={3} disabled={!canEditBugCoreFields(bugStore.selectedBug)} />
           </Form.Item>
-          <Form.Item name="reproductionSteps" label="复现步骤" rules={[{ required: true, message: '请输入复现步骤' }]}>
-            <Input.TextArea rows={3} />
+          <Form.Item name="reproductionSteps" label="复现步骤" rules={[{ required: true, message: '请输入复现步骤' }]}> 
+            <Input.TextArea rows={3} disabled={!canEditBugCoreFields(bugStore.selectedBug)} />
           </Form.Item>
-          <Form.Item name="expectedResult" label="预期结果" rules={[{ required: true, message: '请输入预期结果' }]}>
-            <Input />
+          <Form.Item name="expectedResult" label="预期结果"> 
+            <Input disabled={!canEditBugCoreFields(bugStore.selectedBug)} />
           </Form.Item>
-          <Form.Item name="actualResult" label="实际结果" rules={[{ required: true, message: '请输入实际结果' }]}>
-            <Input />
+          <Form.Item name="actualResult" label="实际结果" rules={[{ required: true, message: '请输入实际结果' }]}> 
+            <Input disabled={!canEditBugCoreFields(bugStore.selectedBug)} />
           </Form.Item>
           
           {/* 第一行：状态、指派给、优先级 */}
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="status" label="状态">
+              <Form.Item name="status" label="状态" rules={[{ required: true, message: '请选择状态' }]}>
                 <Select options={statusOptions.map(s => ({ value: s, label: s }))} />
               </Form.Item>
             </Col>
             <Col span={8}>
               <Form.Item name="assignee" label="指派给">
                 <Select
-                  mode="multiple"
                   placeholder="请选择指派人员"
                   allowClear
                   options={users.map((u: any) => ({ value: u.id, label: u.name }))}
@@ -640,7 +831,7 @@ const BugManagementPage: React.FC = () => {
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="priority" label="优先级" rules={[{ required: true, message: '请选择优先级' }]}>
+              <Form.Item name="priority" label="优先级">
                 <Select options={priorityOptions.map(p => ({ value: p, label: p }))} />
               </Form.Item>
             </Col>
@@ -661,6 +852,48 @@ const BugManagementPage: React.FC = () => {
             <Col span={8}>
               <Form.Item name="responsibility" label="责任归属" rules={[{ required: true, message: '请选择责任归属' }]}>
                 <Select options={responsibilityOptions.map(r => ({ value: r, label: r }))} />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          {/* 第三行：三级类目、型号、SKU */}
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="categoryLevel3" label="三级类目">
+                <Input placeholder="请输入三级类目" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="model" label="型号">
+                <Input placeholder="请输入型号" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="sku" label="SKU">
+                <Input placeholder="请输入SKU" />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          {/* 第四行：硬件版本、软件版本、标签 */}
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="hardwareVersion" label="硬件版本">
+                <Input placeholder="请输入硬件版本" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="softwareVersion" label="软件版本">
+                <Input placeholder="请输入软件版本" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="tags" label="标签">
+                <Input 
+                  placeholder="请输入标签" 
+                  maxLength={50}
+                  showCount
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -699,6 +932,11 @@ const BugManagementPage: React.FC = () => {
             </p>
             <p><b>创建人：</b>{detailModal.bug.reporterName}</p>
             <p><b>创建时间：</b>{dayjs(detailModal.bug.createdAt).format('YYYY-MM-DD HH:mm')}</p>
+            <p><b>三级类目：</b>{detailModal.bug.categoryLevel3}</p>
+            <p><b>型号：</b>{detailModal.bug.model}</p>
+            <p><b>SKU：</b>{detailModal.bug.sku}</p>
+            <p><b>硬件版本：</b>{detailModal.bug.hardwareVersion}</p>
+            <p><b>软件版本：</b>{detailModal.bug.softwareVersion}</p>
             <div style={{ marginTop: 16 }}>
               <b>评论：</b>
               {detailModal.bug.comments && detailModal.bug.comments.length > 0 ? (
@@ -732,7 +970,6 @@ const BugManagementPage: React.FC = () => {
         onConfirm={handleBulkImport}
         columns={importColumns}
         title="批量导入Bug"
-        templateUrl="/templates/bug-import-template.xlsx"
       />
     </div>
   );

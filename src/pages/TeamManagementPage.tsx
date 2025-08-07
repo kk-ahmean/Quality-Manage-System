@@ -28,6 +28,8 @@ import {
   CrownOutlined
 } from '@ant-design/icons'
 import { useUserStore } from '../stores/userStore'
+import { useAuthStore } from '../stores/authStore'
+import { logSystemActivity } from '../stores/authStore'
 import { Team, User } from '../types/user'
 import dayjs from 'dayjs'
 
@@ -45,8 +47,11 @@ const TeamManagementPage: React.FC = () => {
     createTeam,
     updateTeam,
     deleteTeam,
-    clearError
+    clearError,
+    logUserActivity
   } = useUserStore()
+  
+  const { user: currentUser } = useAuthStore()
 
   const [isModalVisible, setIsModalVisible] = useState(false)
   const [editingTeam, setEditingTeam] = useState<Team | null>(null)
@@ -72,10 +77,14 @@ const TeamManagementPage: React.FC = () => {
 
   const handleEditTeam = (team: Team) => {
     setEditingTeam(team)
+    
+    // 处理成员数据格式 - 提取用户ID
+    const memberIds = team.members?.map(member => member.user) || []
+    
     form.setFieldsValue({
       name: team.name,
       description: team.description,
-      members: team.members,
+      members: memberIds,
       leader: team.leader
     })
     setIsModalVisible(true)
@@ -83,8 +92,18 @@ const TeamManagementPage: React.FC = () => {
 
   const handleDeleteTeam = async (teamId: string) => {
     try {
+      const teamToDelete = teams.find(team => team.id === teamId)
       await deleteTeam(teamId)
       message.success('团队删除成功')
+      
+      // 记录活动日志
+      if (currentUser) {
+        logSystemActivity(
+          currentUser.id,
+          'DELETE_TEAM',
+          `删除团队: ${teamToDelete?.name || '未知团队'}`
+        )
+      }
     } catch (err) {
       // 错误已在store中处理
     }
@@ -98,10 +117,28 @@ const TeamManagementPage: React.FC = () => {
         // 更新团队
         await updateTeam(editingTeam.id, values)
         message.success('团队更新成功')
+        
+        // 记录活动日志
+        if (currentUser) {
+          logSystemActivity(
+            currentUser.id,
+            'UPDATE_TEAM',
+            `更新团队: ${values.name}`
+          )
+        }
       } else {
         // 创建团队
         await createTeam(values)
         message.success('团队创建成功')
+        
+        // 记录活动日志
+        if (currentUser) {
+          logSystemActivity(
+            currentUser.id,
+            'CREATE_TEAM',
+            `创建团队: ${values.name}`
+          )
+        }
       }
       
       setIsModalVisible(false)
@@ -142,9 +179,9 @@ const TeamManagementPage: React.FC = () => {
       title: '编号',
       key: 'index',
       width: 60,
-      render: (_: any, __: any, index: number) => (
+      render: (_: any, record: any) => (
         <span style={{ color: '#666', fontWeight: 'bold' }}>
-          {index + 1}
+          {record.sequenceNumber || '-'}
         </span>
       )
     },
@@ -181,7 +218,7 @@ const TeamManagementPage: React.FC = () => {
       title: '成员数量',
       key: 'memberCount',
       render: (record: Team) => (
-        <Tag color="blue">{record.members.length} 人</Tag>
+        <Tag color="blue">{record.members?.length || 0} 人</Tag>
       )
     },
     {
@@ -222,7 +259,9 @@ const TeamManagementPage: React.FC = () => {
   ]
 
   const expandedRowRender = (record: Team) => {
-    const teamMembers = users.filter(user => record.members.includes(user.id))
+    const teamMembers = users.filter(user => 
+      record.members.some(member => member.user === user.id)
+    )
     
     return (
       <div style={{ padding: '16px' }}>
@@ -281,7 +320,7 @@ const TeamManagementPage: React.FC = () => {
           loading={loading}
           expandable={{
             expandedRowRender,
-            rowExpandable: (record) => record.members.length > 0
+            rowExpandable: (record) => (record.members?.length || 0) > 0
           }}
         />
       </Card>

@@ -42,6 +42,7 @@ export interface Project {
   id: string;
   model: string; // 型号
   sku: string; // SKU
+  categoryLevel3: string; // 三级类目
   interfaceFeatures?: string; // 接口特性
   productImages?: ProjectAttachment[]; // 产品图片
   level: ProjectLevel; // 等级
@@ -62,6 +63,7 @@ export interface Project {
 export interface CreateProjectRequest {
   model: string;
   sku: string;
+  categoryLevel3: string;
   interfaceFeatures?: string;
   productImages?: File[];
   level: ProjectLevel;
@@ -79,6 +81,7 @@ export interface UpdateProjectRequest {
   id: string;
   model?: string;
   sku?: string;
+  categoryLevel3?: string;
   interfaceFeatures?: string;
   productImages?: File[];
   level?: ProjectLevel;

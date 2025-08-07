@@ -2,9 +2,9 @@
 
 export type BugPriority = 'P0' | 'P1' | 'P2' | 'P3';
 export type BugSeverity = 'S' | 'A' | 'B' | 'C';
-export type BugType = '功能缺陷' | '性能问题' | '界面问题' | '兼容性问题' | '安全问题' | '其他';
+export type BugType = '电气性能' | '可靠性' | '环保' | '安规' | '资料' | '兼容性' | '复测与确认' | '设备特性' | '其它';
 export type BugStatus = '新建' | '处理中' | '待验证' | '已解决' | '已关闭' | '重新打开';
-export type BugResponsibility = '软件' | '硬件' | '结构' | 'ID' | '包装' | '产品' | '项目' | '供应商';
+export type BugResponsibility = '软件' | '硬件' | '结构' | 'ID' | '包装' | '产品' | '项目' | '供应商' | 'DQE' | '实验室';
 
 export interface BugAttachment {
   id: string;
@@ -28,12 +28,13 @@ export interface BugComment {
 
 export interface Bug {
   id: string;
+  sequenceNumber?: number; // 添加编号字段
   title: string;
   description: string;
   reproductionSteps: string;
-  expectedResult: string;
+  expectedResult?: string;
   actualResult: string;
-  priority: BugPriority;
+  priority?: BugPriority;
   severity: BugSeverity;
   type: BugType;
   responsibility: BugResponsibility;
@@ -42,10 +43,15 @@ export interface Bug {
   assigneeName?: string;
   reporter: string;
   reporterName: string;
+  categoryLevel3: string;
+  model: string;
+  sku: string;
+  hardwareVersion: string;
+  softwareVersion: string;
   createdAt: string;
   updatedAt: string;
   dueDate?: string;
-  tags?: string[];
+  tags?: string;
   attachments: BugAttachment[];
   comments: BugComment[];
   relatedBugs?: string[];
@@ -56,16 +62,21 @@ export interface CreateBugRequest {
   title: string;
   description: string;
   reproductionSteps: string;
-  expectedResult: string;
+  expectedResult?: string;
   actualResult: string;
-  priority: BugPriority;
+  priority?: BugPriority;
   severity: BugSeverity;
   type: BugType;
   responsibility: BugResponsibility;
-  status?: BugStatus;
+  status: BugStatus;
   assignee?: string;
   dueDate?: string;
-  tags?: string[];
+  categoryLevel3: string;
+  model: string;
+  sku: string;
+  hardwareVersion: string;
+  softwareVersion: string;
+  tags?: string;
   attachments?: File[];
 }
 
@@ -83,7 +94,12 @@ export interface UpdateBugRequest {
   status?: BugStatus;
   assignee?: string;
   dueDate?: string;
-  tags?: string[];
+  categoryLevel3?: string;
+  model?: string;
+  sku?: string;
+  hardwareVersion?: string;
+  softwareVersion?: string;
+  tags?: string;
 }
 
 export interface BugFilters {
@@ -149,5 +165,5 @@ export interface BugTemplate {
   severity: BugSeverity;
   type: BugType;
   responsibility: BugResponsibility;
-  tags?: string[];
+  tags?: string;
 } 

@@ -106,10 +106,10 @@ const LoginPage: React.FC = () => {
                   <BugOutlined className="logo-icon" />
                 </div>
                 <Title level={2} className="login-title">
-                  Bug管理系统
+                  品质管理系统
                 </Title>
                 <Text type="secondary" className="login-subtitle">
-                  专业的缺陷跟踪与项目管理平台
+                  专业的品质跟踪与项目管理平台
                 </Text>
               </Space>
             </div>
@@ -124,8 +124,7 @@ const LoginPage: React.FC = () => {
               <Form.Item
                 name="username"
                 rules={[
-                  { required: true, message: '请输入用户名！' },
-                  { min: 3, message: '用户名至少3个字符！' }
+                  { required: true, message: '请输入用户名！' }
                 ]}
               >
                 <Input
@@ -174,15 +173,15 @@ const LoginPage: React.FC = () => {
               </div>
             </Form>
 
-            {/* 隐藏演示账户信息 */}
-            {/* <div className="demo-accounts">
+            {/* 演示账户信息 */}
+            <div className="demo-accounts">
               <Text type="secondary">演示账户：</Text>
               <div className="account-list">
                 <Text code>admin / 123456</Text>
                 <Text code>developer / 123456</Text>
                 <Text code>tester / 123456</Text>
               </div>
-            </div> */}
+            </div>
           </Card>
         </div>
       </div>

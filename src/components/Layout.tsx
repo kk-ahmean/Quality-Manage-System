@@ -45,7 +45,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, logout } = useAuthStore();
   const { t } = useTranslation();
   const { bugs } = useBugStore();
-  const { users } = useUserStore();
+  const { users, teams, fetchTeams } = useUserStore();
   const { tasks } = useTaskStore();
   
   const [collapsed, setCollapsed] = useState(false);
@@ -83,6 +83,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       type: 'bug'
     }
   ]);
+
+  // 加载团队数据
+  useEffect(() => {
+    if (teams.length === 0) {
+      fetchTeams();
+    }
+  }, [teams.length, fetchTeams]);
 
   // 从localStorage加载公告数据并转换为通知
   useEffect(() => {
@@ -152,8 +159,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   };
 
-  // 从各个模块获取真实数据进行搜索
-  const getSearchData = (): SearchResult[] => {
+  // 获取搜索数据
+  const getSearchData = () => {
     const searchData: SearchResult[] = [];
     
     // 添加Bug数据
@@ -163,7 +170,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         type: 'bug',
         title: bug.title,
         description: bug.description,
-        link: '/bugs',
+        link: '/Quality-Manage-System/bugs',
         createdAt: bug.createdAt
       });
     });
@@ -175,7 +182,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         type: 'user',
         title: user.name,
         description: `${user.role} - ${user.email || '无邮箱'}`,
-        link: '/users/list',
+        link: '/Quality-Manage-System/users/list',
         createdAt: user.createdAt || '2024-07-01'
       });
     });
@@ -187,7 +194,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         type: 'task',
         title: task.title,
         description: task.description,
-        link: '/tasks',
+        link: '/Quality-Manage-System/tasks',
         createdAt: task.createdAt
       });
     });
@@ -200,41 +207,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         type: 'project',
         title: project.model,
         description: `SKU: ${project.sku} | 等级: ${project.level} | 状态: ${project.status}`,
-        link: '/projects',
+        link: '/Quality-Manage-System/projects',
         createdAt: project.createdAt
       });
     });
     
-    // 添加团队数据（模拟）
-    const teamData = [
-      {
-        id: 'team1',
-        name: '开发团队',
-        description: '负责系统开发和维护',
-        createdAt: '2024-07-01'
-      },
-      {
-        id: 'team2',
-        name: '测试团队',
-        description: '负责系统测试和质量保证',
-        createdAt: '2024-07-02'
-      },
-      {
-        id: 'team3',
-        name: '产品团队',
-        description: '负责产品规划和需求管理',
-        createdAt: '2024-07-03'
-      }
-    ];
-    
-    teamData.forEach(team => {
+    // 添加真实团队数据
+    teams.forEach(team => {
       searchData.push({
         id: team.id,
         type: 'team',
         title: team.name,
-        description: team.description,
-        link: '/users/teams',
-        createdAt: team.createdAt
+        description: team.description || '暂无描述',
+        link: '/Quality-Manage-System/users/teams',
+        createdAt: team.createdAt || '2024-07-01'
       });
     });
     
@@ -243,42 +229,42 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const menuItems = [
     {
-      key: '/dashboard',
+      key: '/Quality-Manage-System/dashboard',
       icon: <DashboardOutlined />,
       label: t('common.dashboard'),
     },
     {
-      key: '/projects',
+      key: '/Quality-Manage-System/projects',
       icon: <ProjectOutlined />,
       label: '项目管理',
     },
     {
-      key: '/users/list',
+      key: '/Quality-Manage-System/users/list',
       icon: <UserIcon />,
       label: t('common.userManagement'),
     },
     {
-      key: '/users/teams',
+      key: '/Quality-Manage-System/users/teams',
       icon: <TeamOutlined />,
       label: t('common.teamManagement'),
     },
     {
-      key: '/tasks',
+      key: '/Quality-Manage-System/tasks',
       icon: <CheckSquareOutlined />,
       label: t('common.taskManagement'),
     },
     {
-      key: '/bugs',
+      key: '/Quality-Manage-System/bugs',
       icon: <BugOutlined />,
       label: t('common.bugManagement'),
     },
     {
-      key: '/system-logs',
+      key: '/Quality-Manage-System/system-logs',
       icon: <HistoryOutlined />,
       label: t('common.systemLog'),
     },
     {
-      key: '/settings',
+      key: '/Quality-Manage-System/settings',
       icon: <SettingOutlined />,
       label: t('common.systemSettings'),
     },
@@ -298,13 +284,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       key: 'profile',
       label: t('common.profile'),
       icon: <UserOutlined />,
-      onClick: () => navigate('/profile')
+      onClick: () => navigate('/Quality-Manage-System/profile')
     },
     {
       key: 'settings',
       label: t('common.settings'),
       icon: <SettingOutlined />,
-      onClick: () => navigate('/settings')
+      onClick: () => navigate('/Quality-Manage-System/settings')
     },
     {
       type: 'divider' as const
@@ -315,7 +301,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       icon: <LogoutOutlined />,
       onClick: () => {
         logout()
-        navigate('/login')
+        navigate('/Quality-Manage-System/login')
       }
     }
   ];
@@ -421,7 +407,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       >
         <div className="logo">
           <h2 style={{ color: 'white', textAlign: 'center', margin: '16px 0' }}>
-            Bug管理系统
+            品质管理系统
           </h2>
         </div>
         <Menu

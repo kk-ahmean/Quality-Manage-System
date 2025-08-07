@@ -153,12 +153,19 @@ describe('UserManagementPage', () => {
 
     renderWithProviders(<UserManagementPage />)
     
-    const deleteButtons = screen.getAllByRole('button', { name: /删除/ })
-    fireEvent.click(deleteButtons[0])
+    // 点击操作按钮打开下拉菜单
+    const operationButtons = screen.getAllByRole('button', { name: /操作/ })
+    fireEvent.click(operationButtons[0])
+    
+    // 等待下拉菜单出现并点击删除
+    await waitFor(() => {
+      const deleteOption = screen.getByText('删除')
+      fireEvent.click(deleteOption)
+    })
     
     // 等待确认对话框出现
     await waitFor(() => {
-      expect(screen.getByText('确认删除该用户？')).toBeInTheDocument()
+      expect(screen.getByText('确定要删除这个用户吗？')).toBeInTheDocument()
     })
     
     const confirmButton = screen.getByText('确定')

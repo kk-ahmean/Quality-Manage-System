@@ -83,6 +83,9 @@ const UserManagementPage: React.FC = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [selectedUserForPermission, setSelectedUserForPermission] = useState<User | null>(null)
   const [selectedUserForActivity, setSelectedUserForActivity] = useState<User | null>(null)
+  const [searchText, setSearchText] = useState('')
+  const [roleFilter, setRoleFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [form] = Form.useForm()
   const [searchForm] = Form.useForm()
   const [permissionForm] = Form.useForm()
@@ -101,17 +104,20 @@ const UserManagementPage: React.FC = () => {
   const handleAddUser = () => {
     setEditingUser(null)
     form.resetFields()
+    form.setFieldsValue({ status: 'active' }) // 设置默认状态
     setIsModalVisible(true)
   }
 
   const handleEditUser = (user: User) => {
     setEditingUser(user)
     form.setFieldsValue({
-      username: user.username,
-      name: user.name,
+      username: user.username || user.name, // 显示用户名但不允许编辑
+      name: user.name, // 显示姓名但不允许编辑
       email: user.email,
+      phone: user.phone || '', // 确保手机号字段有值
       role: user.role,
-      department: user.department,
+      department: user.department || '', // 确保部门字段有值
+      position: user.position || '', // 确保职位字段有值
       status: user.status
     })
     setIsModalVisible(true)
@@ -138,31 +144,44 @@ const UserManagementPage: React.FC = () => {
       const values = await form.validateFields()
       
       if (editingUser) {
-        // 更新用户
-        await updateUser({
+        // 更新用户 - 不更新用户名和姓名
+        const updateData = {
           id: editingUser.id,
-          ...values
-        })
+          email: values.email,
+          phone: values.phone,
+          role: values.role,
+          department: values.department,
+          position: values.position,
+          status: values.status
+        }
+        await updateUser(updateData)
         
         // 记录更新用户日志
         if (currentUser) {
-          logSystemActivity(currentUser.id, 'UPDATE_USER', `更新用户信息: ${values.name}`)
+          logSystemActivity(currentUser.id, 'UPDATE_USER', `更新用户信息: ${editingUser.name}`)
         }
         
         message.success('用户更新成功')
       } else {
-        // 创建用户
-        await createUser(values)
+        // 创建用户 - 将username映射为name
+        const userData = {
+          ...values,
+          name: values.username, // 将username映射为name
+          username: values.username // 保留username字段
+        }
+        
+        await createUser(userData)
         
         // 记录创建用户日志
         if (currentUser) {
-          logSystemActivity(currentUser.id, 'CREATE_USER', `创建新用户: ${values.name}`)
+          logSystemActivity(currentUser.id, 'CREATE_USER', `创建新用户: ${values.username}`)
         }
         
         message.success('用户创建成功')
       }
       
       setIsModalVisible(false)
+      setEditingUser(null) // 清空编辑状态
       form.resetFields()
     } catch (error) {
       message.error('操作失败')
@@ -171,11 +190,37 @@ const UserManagementPage: React.FC = () => {
 
   const handleModalCancel = () => {
     setIsModalVisible(false)
+    setEditingUser(null) // 清空编辑状态
     form.resetFields()
   }
 
   const handleSearch = async (values: any) => {
-    await fetchUsers(values)
+    const filters: any = {}
+    if (searchText) filters.search = searchText
+    if (roleFilter) filters.role = roleFilter
+    if (statusFilter) filters.status = statusFilter
+    
+    await fetchUsers(filters)
+  }
+
+  const handleSearchInput = (value: string) => {
+    setSearchText(value)
+  }
+
+  const handleSearchSubmit = () => {
+    const filters: any = {}
+    if (searchText) filters.search = searchText
+    if (roleFilter) filters.role = roleFilter
+    if (statusFilter) filters.status = statusFilter
+    
+    fetchUsers(filters)
+  }
+
+  const handleResetFilters = () => {
+    setSearchText('')
+    setRoleFilter('')
+    setStatusFilter('')
+    fetchUsers()
   }
 
   const handleTableChange = (pagination: any) => {
@@ -235,6 +280,8 @@ const UserManagementPage: React.FC = () => {
         
         message.success('权限更新成功')
         setIsPermissionModalVisible(false)
+        setSelectedUserForPermission(null) // 清空选中的用户
+        permissionForm.resetFields()
       }
     } catch (error) {
       message.error('权限更新失败')
@@ -243,6 +290,7 @@ const UserManagementPage: React.FC = () => {
 
   const handlePermissionModalCancel = () => {
     setIsPermissionModalVisible(false)
+    setSelectedUserForPermission(null) // 清空选中的用户
     permissionForm.resetFields()
   }
 
@@ -324,9 +372,9 @@ const UserManagementPage: React.FC = () => {
       title: '编号',
       key: 'index',
       width: 60,
-      render: (_: any, __: any, index: number) => (
+      render: (_: any, record: any) => (
         <span style={{ color: '#666', fontWeight: 'bold' }}>
-          {index + 1 + (pagination.page - 1) * pagination.pageSize}
+          {record.sequenceNumber || '-'}
         </span>
       )
     },
@@ -441,11 +489,20 @@ const UserManagementPage: React.FC = () => {
               },
               {
                 key: 'delete',
-                label: '删除',
+                label: (
+                  <Popconfirm
+                    title="确定要删除这个用户吗？"
+                    description="删除后无法恢复，请谨慎操作。"
+                    onConfirm={() => handleDeleteUser(record.id)}
+                    okText="确定"
+                    cancelText="取消"
+                  >
+                    <span style={{ color: '#ff4d4f' }}>删除</span>
+                  </Popconfirm>
+                ),
                 icon: <DeleteOutlined />,
                 danger: true,
-                disabled: record.role === 'admin',
-                onClick: () => handleDeleteUser(record.id)
+                disabled: record.role === 'admin'
               }
             ]
           }}
@@ -471,24 +528,24 @@ const UserManagementPage: React.FC = () => {
         }
       >
         {/* 搜索表单 */}
-        <Form
-          form={searchForm}
-          layout="inline"
-          onFinish={handleSearch}
-          style={{ marginBottom: 16 }}
-        >
-          <Form.Item name="keyword">
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col span={6}>
             <Input
               placeholder="搜索用户名、姓名或邮箱"
               prefix={<SearchOutlined />}
-              style={{ width: 200 }}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onPressEnter={() => handleSearchSubmit()}
+              allowClear
             />
-          </Form.Item>
-          <Form.Item name="role">
+          </Col>
+          <Col span={4}>
             <Select
               placeholder="选择角色"
+              value={roleFilter}
+              onChange={setRoleFilter}
               allowClear
-              style={{ width: 120 }}
+              style={{ width: '100%' }}
             >
               <Option value="admin">管理员</Option>
               <Option value="product_engineer">产品工程师</Option>
@@ -497,23 +554,36 @@ const UserManagementPage: React.FC = () => {
               <Option value="dqe">DQE</Option>
               <Option value="tester">测试员</Option>
             </Select>
-          </Form.Item>
-          <Form.Item name="status">
+          </Col>
+          <Col span={4}>
             <Select
               placeholder="选择状态"
+              value={statusFilter}
+              onChange={setStatusFilter}
               allowClear
-              style={{ width: 100 }}
+              style={{ width: '100%' }}
             >
               <Option value="active">启用</Option>
               <Option value="inactive">禁用</Option>
             </Select>
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading}>
-              搜索
-            </Button>
-          </Form.Item>
-        </Form>
+          </Col>
+          <Col span={6}>
+            <Space>
+              <Button
+                icon={<SearchOutlined />}
+                onClick={handleSearchSubmit}
+              >
+                搜索
+              </Button>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={handleResetFilters}
+              >
+                重置
+              </Button>
+            </Space>
+          </Col>
+        </Row>
 
         {/* 用户表格 */}
         <Table
@@ -567,7 +637,7 @@ const UserManagementPage: React.FC = () => {
                 label="姓名"
                 rules={[{ required: true, message: '请输入姓名' }]}
               >
-                <Input />
+                <Input disabled={!!editingUser} />
               </Form.Item>
             </Col>
           </Row>

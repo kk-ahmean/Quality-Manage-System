@@ -74,7 +74,6 @@ const bugSchema = new mongoose.Schema({
   },
   expectedResult: {
     type: String,
-    required: [true, '期望结果是必需的'],
     trim: true
   },
   actualResult: {
@@ -84,8 +83,7 @@ const bugSchema = new mongoose.Schema({
   },
   priority: {
     type: String,
-    enum: ['P0', 'P1', 'P2', 'P3'],
-    default: 'P2'
+    enum: ['P0', 'P1', 'P2', 'P3']
   },
   severity: {
     type: String,
@@ -94,17 +92,18 @@ const bugSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['功能缺陷', '性能问题', '界面问题', '兼容性问题', '安全问题', '其他'],
-    default: '功能缺陷'
+    enum: ['电气性能', '可靠性', '环保', '安规', '资料', '兼容性', '复测与确认', '设备特性', '其它'],
+    default: '电气性能'
   },
   responsibility: {
     type: String,
-    enum: ['软件', '硬件', '结构', 'ID'],
+    enum: ['软件', '硬件', '结构', 'ID', '包装', '产品', '项目', '供应商', 'DQE', '实验室'],
     default: '软件'
   },
   status: {
     type: String,
     enum: ['新建', '处理中', '待验证', '已解决', '已关闭', '重新打开'],
+    required: [true, '状态是必需的'],
     default: '新建'
   },
   reporter: {
@@ -130,10 +129,41 @@ const bugSchema = new mongoose.Schema({
     ref: 'Project',
     default: null
   },
-  tags: [{
+  tags: {
     type: String,
-    trim: true
-  }],
+    trim: true,
+    maxlength: [50, '标签不能超过50个字符']
+  },
+  categoryLevel3: {
+    type: String,
+    required: [true, '三级类目不能为空'],
+    trim: true,
+    maxlength: [100, '三级类目不能超过100个字符']
+  },
+  model: {
+    type: String,
+    required: [true, '型号不能为空'],
+    trim: true,
+    maxlength: [100, '型号不能超过100个字符']
+  },
+  sku: {
+    type: String,
+    required: [true, 'SKU不能为空'],
+    trim: true,
+    maxlength: [100, 'SKU不能超过100个字符']
+  },
+  hardwareVersion: {
+    type: String,
+    required: [true, '硬件版本不能为空'],
+    trim: true,
+    maxlength: [50, '硬件版本不能超过50个字符']
+  },
+  softwareVersion: {
+    type: String,
+    required: [true, '软件版本不能为空'],
+    trim: true,
+    maxlength: [50, '软件版本不能超过50个字符']
+  },
   dueDate: {
     type: Date,
     default: null

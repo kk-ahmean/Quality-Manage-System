@@ -9,6 +9,9 @@ export interface Task {
   creator: string // 创建者ID
   creatorName?: string // 创建者姓名
   dueDate: string // 截止日期
+  categoryLevel3?: string // 三级类目
+  model?: string // 型号
+  sku?: string // SKU
   relatedBugs?: string[] // 关联的Bug ID数组
   tags?: string[] // 标签
   attachments?: TaskAttachment[] // 附件
@@ -16,6 +19,7 @@ export interface Task {
   progress: number // 进度百分比 0-100
   estimatedHours?: number // 预估工时
   actualHours?: number // 实际工时
+  sequenceNumber?: number // 序号
   createdAt: string
   updatedAt: string
   completedAt?: string
@@ -50,6 +54,9 @@ export interface CreateTaskRequest {
   priority: TaskPriority
   assignee: string
   dueDate: string
+  categoryLevel3?: string
+  model?: string
+  sku?: string
   relatedBugs?: string[]
   tags?: string[]
   estimatedHours?: number
@@ -63,6 +70,9 @@ export interface UpdateTaskRequest {
   status?: TaskStatus
   assignee?: string
   dueDate?: string
+  categoryLevel3?: string
+  model?: string
+  sku?: string
   relatedBugs?: string[]
   tags?: string[]
   progress?: number

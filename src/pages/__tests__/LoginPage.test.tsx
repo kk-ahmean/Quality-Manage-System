@@ -61,7 +61,7 @@ describe('LoginPage', () => {
   test('renders login form', () => {
     renderLoginPage()
     
-    expect(screen.getByText('Bug管理系统')).toBeInTheDocument()
+    expect(screen.getByText('品质管理系统')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('请输入用户名')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('请输入密码')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /登.?录/ })).toBeInTheDocument()

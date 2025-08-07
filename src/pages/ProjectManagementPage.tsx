@@ -99,11 +99,18 @@ const ProjectManagementPage: React.FC = () => {
       title: '编号',
       key: 'index',
       width: 60,
-      render: (_: any, __: any, index: number) => (
+      render: (_: any, record: any) => (
         <Text strong style={{ color: '#666' }}>
-          {index + 1 + (pagination.current - 1) * pagination.pageSize}
+          {record.sequenceNumber || '-'}
         </Text>
       )
+    },
+    {
+      title: '三级类目',
+      dataIndex: 'categoryLevel3',
+      key: 'categoryLevel3',
+      width: 120,
+      render: (text: string) => <Text strong style={{ color: '#1890ff' }}>{text || '-'}</Text>
     },
     {
       title: '型号',
@@ -130,16 +137,42 @@ const ProjectManagementPage: React.FC = () => {
         }
         return (
           <Image.PreviewGroup>
-            {images.slice(0, 3).map((img, idx) => (
-              <Image
-                key={idx}
-                src={img.url}
-                width={40}
-                height={40}
-                style={{ marginRight: 4, objectFit: 'cover' }}
-                alt={`产品图片${idx + 1}`}
-              />
-            ))}
+            {images.slice(0, 3).map((img, idx) => {
+              // 处理不同的图片数据格式
+              const imageUrl = img.url || img.src || img.data || (typeof img === 'string' ? img : null);
+              const imageName = img.name || img.fileName || `产品图片${idx + 1}`;
+              
+              if (!imageUrl) {
+                return (
+                  <div key={idx} style={{ display: 'inline-block', marginRight: 4 }}>
+                    <div style={{ 
+                      width: 40, 
+                      height: 40, 
+                      backgroundColor: '#f0f0f0', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                      color: '#999'
+                    }}>
+                      {imageName}
+                    </div>
+                  </div>
+                );
+              }
+              
+              return (
+                <Image
+                  key={idx}
+                  src={imageUrl}
+                  width={40}
+                  height={40}
+                  style={{ marginRight: 4, objectFit: 'cover' }}
+                  alt={imageName}
+                  fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJYzMPBHMDBsayhILEqEO4DxG0txmrERhM29nYGBddr//5/DGRjYNRkY/l7////39v///y4Dmn+LgeHANwDrkl1AuO+pmgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
+                />
+              );
+            })}
             {images.length > 3 && (
               <span style={{ color: '#1890ff', fontSize: '12px' }}>
                 +{images.length - 3}
@@ -254,7 +287,26 @@ const ProjectManagementPage: React.FC = () => {
 
   // 处理查看详情
   const handleViewDetail = (project: Project) => {
-    setSelectedProject(project);
+    console.log('查看项目详情:', project); // 调试信息
+    
+    // 确保项目数据格式正确
+    const projectWithFullData = {
+      ...project,
+      model: project.model || (project as any).name,
+      sku: project.sku || project.model || (project as any).name,
+      supplier: project.supplier || '-',
+      interfaceFeatures: project.interfaceFeatures || '-',
+      hardwareSolution: project.hardwareSolution || '-',
+      remarks: project.remarks || '-',
+      creatorName: project.creatorName || '系统管理员',
+      productImages: project.productImages || [],
+      members: project.members || [],
+      versions: project.versions || [],
+      stages: project.stages || []
+    };
+    
+    console.log('处理后的项目详情:', projectWithFullData); // 调试信息
+    setSelectedProject(projectWithFullData);
     setDetailVisible(true);
   };
 
@@ -281,7 +333,7 @@ const ProjectManagementPage: React.FC = () => {
       
       // 记录系统日志
       if (user?.id) {
-        logSystemActivity(user.id, 'PROJECT_DELETE', '删除项目');
+        logSystemActivity(user.id, 'DELETE_PROJECT', '删除项目');
       }
       
       fetchProjects(filters, pagination.current, pagination.pageSize);
@@ -300,6 +352,8 @@ const ProjectManagementPage: React.FC = () => {
   // 处理表单提交
   const handleSubmit = async (values: any) => {
     try {
+      console.log('表单原始数据:', values); // 调试信息
+      
       // 处理团队成员数据
       const memberIds = values.members || [];
       const projectMembers: ProjectMember[] = memberIds.map((userId: string) => {
@@ -316,21 +370,55 @@ const ProjectManagementPage: React.FC = () => {
         version.hardwareVersion && version.softwareVersion
       ) || [];
 
-      // 处理产品图片数据
+      // 处理产品图片数据 - 保存图片的Base64数据
       const productImages = values.productImages?.filter((img: any) => img.status === 'done') || [];
-      
-      // 提取文件对象用于上传
-      const imageFiles = productImages
-        .filter((img: any) => img.originFileObj)
-        .map((img: any) => img.originFileObj);
+      const imageData = productImages.map((img: any) => {
+        // 使用图片的Base64数据
+        return {
+          name: img.name || img.fileName,
+          url: img.url, // Base64数据
+          size: img.size,
+          type: img.type || 'image/jpeg'
+        };
+      }).filter(Boolean);
+
+      // 清理数据，移除所有文件对象和不可序列化的字段
+      const cleanValues = { ...values };
+      delete cleanValues.productImages; // 移除原始文件对象
+      delete cleanValues.originFileObj; // 移除可能的文件对象
+      delete cleanValues.fileList; // 移除可能的文件列表
 
       const formData = {
-        ...values,
+        model: values.model, // 使用正确的model字段
+        sku: values.sku || values.model, // 使用sku或model作为默认值
+        categoryLevel3: values.categoryLevel3, // 添加三级类目字段
+        interfaceFeatures: values.interfaceFeatures,
+        description: values.description,
+        level: values.level,
+        trade: values.trade,
+        status: values.status,
+        manager: values.manager,
+        startDate: values.startDate,
+        endDate: values.endDate,
+        budget: values.budget,
+        tags: values.tags || [],
         members: projectMembers,
         versions,
-        productImages: imageFiles,
-        stages: values.stages?.filter((stage: any) => stage.stage && stage.sampleQuantity) || []
+        productImages: imageData, // 发送图片数据对象
+        stages: values.stages?.filter((stage: any) => stage.stage && stage.sampleQuantity) || [],
+        supplier: values.supplier, // 确保发送供应商字段
+        hardwareSolution: values.hardwareSolution, // 确保发送硬件方案字段
+        remarks: values.remarks // 确保发送备注字段
       };
+
+      console.log('发送的项目数据:', formData); // 调试信息
+      console.log('数据类型检查:', {
+        model: typeof formData.model,
+        level: typeof formData.level,
+        trade: typeof formData.trade,
+        status: typeof formData.status,
+        manager: typeof formData.manager
+      }); // 调试信息
 
       if (editingProject) {
         await updateProject({ id: editingProject.id, ...formData });
@@ -338,7 +426,7 @@ const ProjectManagementPage: React.FC = () => {
         
         // 记录系统日志
         if (user?.id) {
-          logSystemActivity(user.id, 'PROJECT_UPDATE', `更新项目: ${editingProject.model}`);
+          logSystemActivity(user.id, 'UPDATE_PROJECT', `更新项目: ${editingProject.model}`);
         }
       } else {
         await createProject(formData);
@@ -346,13 +434,15 @@ const ProjectManagementPage: React.FC = () => {
         
         // 记录系统日志
         if (user?.id) {
-          logSystemActivity(user.id, 'PROJECT_CREATE', `创建项目: ${values.model}`);
+          logSystemActivity(user.id, 'CREATE_PROJECT', `创建项目: ${formData.model}`);
         }
       }
 
       setModalVisible(false);
       fetchProjects(filters, pagination.current, pagination.pageSize);
     } catch (error) {
+      console.error('项目创建失败:', error); // 调试信息
+      console.error('错误详情:', error.response?.data); // 调试信息
       message.error('操作失败：' + (error as Error).message);
     }
   };
@@ -360,7 +450,9 @@ const ProjectManagementPage: React.FC = () => {
   // 处理搜索
   const handleSearch = (value: string) => {
     setSearchText(value);
-    setFilters(prev => ({ ...prev, keyword: value }));
+    const newFilters = { ...filters, search: value };
+    setFilters(newFilters);
+    fetchProjects(newFilters, 1, pagination.pageSize);
   };
 
   // 处理筛选
@@ -611,9 +703,9 @@ const ProjectManagementPage: React.FC = () => {
             members: []
           }}
         >
-                     {/* 第一行：型号/SKU/等级 */}
+                     {/* 第一行：型号/SKU/等级/三级类目 */}
            <Row gutter={16}>
-             <Col span={8}>
+             <Col span={6}>
                <Form.Item
                  name="model"
                  label="型号"
@@ -622,7 +714,7 @@ const ProjectManagementPage: React.FC = () => {
                  <Input placeholder="请输入型号" />
                </Form.Item>
              </Col>
-             <Col span={8}>
+             <Col span={6}>
                <Form.Item
                  name="sku"
                  label="SKU"
@@ -631,7 +723,7 @@ const ProjectManagementPage: React.FC = () => {
                  <Input placeholder="请输入SKU" />
                </Form.Item>
              </Col>
-             <Col span={8}>
+             <Col span={6}>
                <Form.Item
                  name="level"
                  label="等级"
@@ -642,6 +734,15 @@ const ProjectManagementPage: React.FC = () => {
                    <Option value="L2">L2</Option>
                    <Option value="L3">L3</Option>
                  </Select>
+               </Form.Item>
+             </Col>
+             <Col span={6}>
+               <Form.Item
+                 name="categoryLevel3"
+                 label="三级类目"
+                 rules={[{ required: true, message: '请输入三级类目' }]}
+               >
+                 <Input placeholder="请输入三级类目" />
                </Form.Item>
              </Col>
            </Row>
@@ -958,6 +1059,9 @@ const ProjectManagementPage: React.FC = () => {
             <Descriptions.Item label="SKU">
               {selectedProject.sku}
             </Descriptions.Item>
+            <Descriptions.Item label="三级类目">
+              {selectedProject.categoryLevel3 || '-'}
+            </Descriptions.Item>
             <Descriptions.Item label="等级">
               <Tag color="blue">{selectedProject.level}</Tag>
             </Descriptions.Item>
@@ -1011,15 +1115,43 @@ const ProjectManagementPage: React.FC = () => {
             <Descriptions.Item label="产品图片">
               {selectedProject.productImages && selectedProject.productImages.length > 0 ? (
                 <Image.PreviewGroup>
-                  {selectedProject.productImages.map((img, idx) => (
-                    <Image
-                      key={idx}
-                      src={img.url}
-                      width={80}
-                      style={{ marginRight: 8 }}
-                      alt={`产品图片${idx + 1}`}
-                    />
-                  ))}
+                  {selectedProject.productImages.map((img, idx) => {
+                    // 处理不同的图片数据格式
+                    const imageUrl = img.url || (img as any).src || (img as any).data || (typeof img === 'string' ? img : null);
+                    const imageName = img.name || (img as any).fileName || `产品图片${idx + 1}`;
+                    
+                    if (!imageUrl) {
+                      return (
+                        <div key={idx} style={{ display: 'inline-block', marginRight: 8, marginBottom: 8 }}>
+                          <div style={{ 
+                            width: 80, 
+                            height: 80, 
+                            backgroundColor: '#f0f0f0', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            fontSize: '12px',
+                            color: '#999',
+                            border: '1px solid #d9d9d9',
+                            borderRadius: '4px'
+                          }}>
+                            {imageName}
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <Image
+                        key={idx}
+                        src={imageUrl}
+                        width={80}
+                        style={{ marginRight: 8, marginBottom: 8 }}
+                        alt={imageName}
+                        fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJYzMPBHMDBsayhILEqEO4DxG0txmrERhM29nYGBddr//5/DGRjYNRkY/l7////39v///y4Dmn+LgeHANwDrkl1AuO+pmgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
+                      />
+                    );
+                  })}
                 </Image.PreviewGroup>
               ) : (
                 <span>无</span>

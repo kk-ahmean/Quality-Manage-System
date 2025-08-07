@@ -20,7 +20,19 @@ export const authMiddleware = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // 查找用户
-    const user = await User.findById(decoded.id).select('-password');
+    let user;
+    if (global.memoryDB) {
+      // 内存数据库模式
+      user = global.memoryDB.users.find(u => u._id === decoded.id);
+      if (user) {
+        // 移除密码字段
+        const { password, ...userWithoutPassword } = user;
+        user = userWithoutPassword;
+      }
+    } else {
+      // MongoDB模式
+      user = await User.findById(decoded.id).select('-password');
+    }
     
     if (!user) {
       return res.status(401).json({
