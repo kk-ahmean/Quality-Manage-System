@@ -7,6 +7,8 @@ import ProjectManagementPage from '../ProjectManagementPage';
 import { useProjectStore } from '../../stores/projectStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useUserStore } from '../../stores/userStore';
+import { UserRole, UserStatus } from '../../types/user';
+import { vi } from 'vitest';
 import { test, expect } from '@playwright/test';
 
 // Mock stores
@@ -49,9 +51,9 @@ const mockProjects = [
     dvtReport: undefined,
     remarks: '重点项目，需要重点关注',
     members: [
-      { userId: 'user1', userName: '张三', role: '研发' as const },
-      { userId: 'user2', userName: '李四', role: '测试' as const },
-      { userId: 'user3', userName: '王五', role: '项目' as const }
+      { userId: 'user1', name: '张三', role: '研发' as const },
+      { userId: 'user2', name: '李四', role: '测试' as const },
+      { userId: 'user3', name: '王五', role: '项目' as const }
     ],
     reviewConclusion: '通过评审，可以进入下一阶段',
     status: '进行中' as const,
@@ -63,12 +65,11 @@ const mockProjects = [
 ];
 
 const mockUser = {
-  id: 'user1',
-  username: 'admin',
+  id: '1',
+  name: 'admin',
   email: 'admin@example.com',
-  name: '管理员',
-  role: 'admin' as const,
-  status: 'active' as const,
+  role: 'admin' as UserRole,
+  status: 'active' as UserStatus,
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z'
 };
@@ -124,7 +125,7 @@ test.describe('项目管理页面图片上传功能测试', () => {
   test.beforeEach(async ({ page }) => {
     // 登录
     await page.goto('/');
-    await page.fill('[data-testid="username"]', 'admin');
+    await page.fill('[data-testid="name"]', 'admin');
     await page.fill('[data-testid="password"]', 'admin123');
     await page.click('[data-testid="login-button"]');
     

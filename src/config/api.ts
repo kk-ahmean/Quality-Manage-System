@@ -16,7 +16,7 @@ export const getApiConfig = (): ApiConfig => {
   switch (env) {
     case 'production':
       return {
-        baseURL: 'https://your-production-api.com/api',
+        baseURL: 'http://192.168.53.20:5001/api',
         timeout: 15000
       };
     

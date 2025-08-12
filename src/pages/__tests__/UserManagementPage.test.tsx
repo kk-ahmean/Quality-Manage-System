@@ -6,6 +6,7 @@ import zhCN from 'antd/locale/zh_CN.js'
 import { vi } from 'vitest'
 import UserManagementPage from '../UserManagementPage'
 import { useUserStore } from '../../stores/userStore'
+import { UserRole, UserStatus } from '../../types/user'
 
 // Mock the user store
 vi.mock('../../stores/userStore', () => ({
@@ -28,11 +29,10 @@ describe('UserManagementPage', () => {
   const mockUsers = [
     {
       id: '1',
-      username: 'admin',
+      name: 'admin',
       email: 'admin@example.com',
-      name: '系统管理员',
-      role: 'admin' as const,
-      status: 'active' as const,
+      role: 'admin' as UserRole,
+      status: 'active' as UserStatus,
       department: '技术部',
       position: '系统管理员',
       permissions: ['user:read', 'user:create', 'user:update', 'user:delete'],
@@ -42,11 +42,10 @@ describe('UserManagementPage', () => {
     },
     {
       id: '2',
-      username: 'developer',
+      name: 'developer',
       email: 'developer@example.com',
-      name: '开发工程师',
-      role: 'developer' as const,
-      status: 'active' as const,
+      role: 'developer' as UserRole,
+      status: 'active' as UserStatus,
       department: '技术部',
       position: '前端开发',
       permissions: ['user:read', 'bug:read', 'bug:update'],

@@ -45,7 +45,8 @@ import { useUserStore } from '../stores/userStore'
 import { useAuthStore } from '../stores/authStore'
 import { logSystemActivity } from '../stores/authStore'
 import { Task, TaskStatus, TaskPriority, CreateTaskRequest, UpdateTaskRequest } from '../types/task'
-import { User } from '../types/user'
+import { User, Permission } from '../types/user'
+import { canShowDeleteButton, hasPermission } from '../utils/permissions'
 import dayjs from 'dayjs'
 
 const { TextArea } = Input
@@ -102,10 +103,10 @@ const TaskManagementPage: React.FC = () => {
   }, [])
 
   // 获取用户名称的辅助函数
-  const getUserName = (userId: string) => {
-    const user = users.find(u => u.id === userId)
-    return user ? user.name : userId
-  }
+  const getName = (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    return user ? user.name : '未知用户';
+  };
 
   // 状态映射
   const statusMap = {
@@ -219,7 +220,7 @@ const TaskManagementPage: React.FC = () => {
         if (assignee && typeof assignee === 'object' && 'name' in assignee) {
           displayName = assignee.name;
         } else if (typeof assignee === 'string') {
-          displayName = getUserName(assignee);
+          displayName = getName(assignee);
         }
         return (
           <div style={{ textAlign: 'center' }}>
@@ -319,14 +320,19 @@ const TaskManagementPage: React.FC = () => {
           >
             详情
           </Button>
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-          >
-            编辑
-          </Button>
+          {(hasPermission(
+            (currentUser?.permissions || []) as Permission[],
+            'task:update'
+          ) || record.creator === currentUser?.id) && (
+            <Button
+              type="link"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
+            >
+              编辑
+            </Button>
+          )}
           <Dropdown
             menu={{
               items: [
@@ -342,16 +348,20 @@ const TaskManagementPage: React.FC = () => {
                   icon: <EyeOutlined />,
                   onClick: () => handleReview(record)
                 }] : []),
-                {
-                  type: 'divider'
-                },
-                {
+                ...(canShowDeleteButton(
+                  (currentUser?.permissions || []) as Permission[],
+                  currentUser?.id || '',
+                  record.creator || '',
+                  'task'
+                ) ? [{
+                  type: 'divider' as const
+                }, {
                   key: 'delete',
                   label: '删除任务',
                   icon: <DeleteOutlined />,
                   danger: true,
                   onClick: () => handleDelete(record)
-                }
+                }] : [])
               ]
             }}
           >
@@ -525,7 +535,7 @@ const TaskManagementPage: React.FC = () => {
       
       // 记录活动日志
       if (currentUser) {
-        const assigneeName = getUserName(values.assignee)
+        const assigneeName = getName(values.assignee)
         logSystemActivity(
           currentUser.id,
           'ASSIGN_TASK',
@@ -711,7 +721,7 @@ const TaskManagementPage: React.FC = () => {
         <Row gutter={16} align="middle">
           <Col span={6}>
             <Input
-              placeholder="搜索任务标题或描述"
+              placeholder="搜索任务标题、描述或标签"
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
               onPressEnter={handleSearch}
@@ -720,11 +730,14 @@ const TaskManagementPage: React.FC = () => {
           </Col>
           <Col span={4}>
             <Select
+              className="filter-select"
               placeholder="请选择任务状态"
               value={statusFilter}
               onChange={setStatusFilter}
               allowClear
               style={{ width: '100%' }}
+              notFoundContent="暂无状态数据"
+              showSearch={false}
             >
               {Object.entries(statusMap).map(([key, value]) => (
                 <Option key={key} value={key}>
@@ -735,11 +748,14 @@ const TaskManagementPage: React.FC = () => {
           </Col>
           <Col span={4}>
             <Select
+              className="filter-select"
               placeholder="请选择优先级"
               value={priorityFilter}
               onChange={setPriorityFilter}
               allowClear
               style={{ width: '100%' }}
+              notFoundContent="暂无优先级数据"
+              showSearch={false}
             >
               {Object.entries(priorityMap).map(([key, value]) => (
                 <Option key={key} value={key}>
@@ -750,11 +766,14 @@ const TaskManagementPage: React.FC = () => {
           </Col>
           <Col span={4}>
             <Select
+              className="filter-select"
               placeholder="请选择负责人"
               value={assigneeFilter}
               onChange={setAssigneeFilter}
               allowClear
               style={{ width: '100%' }}
+              notFoundContent="暂无用户数据"
+              showSearch={false}
             >
               {users.map(user => (
                 <Option key={user.id} value={user.id}>
@@ -804,9 +823,14 @@ const TaskManagementPage: React.FC = () => {
       <Card
         title="任务列表"
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-            创建任务
-          </Button>
+          hasPermission(
+            (currentUser?.permissions || []) as Permission[],
+            'task:create'
+          ) && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+              创建任务
+            </Button>
+          )
         }
       >
         <Table
@@ -1156,7 +1180,7 @@ const TaskManagementPage: React.FC = () => {
                     <strong>负责人：</strong>
                     {selectedTask.assignee && typeof selectedTask.assignee === 'object' && (selectedTask.assignee as any)?.name
                       ? (selectedTask.assignee as any).name
-                      : getUserName(selectedTask.assignee || '') || selectedTask.assigneeName || selectedTask.assignee || '未分配'}
+                      : getName(selectedTask.assignee || '') || selectedTask.assigneeName || selectedTask.assignee || '未分配'}
                   </div>
                   <div>
                     <strong>创建者：</strong>

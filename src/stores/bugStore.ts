@@ -66,6 +66,8 @@ export const useBugStore = create<BugStore>((set, get) => ({
   fetchBugs: async (filters = {}, page = 1, pageSize = 20) => {
     set({ loading: true });
     try {
+      console.log('开始获取Bug列表，参数:', { filters, page, pageSize });
+      
       // 调用真实API
       const response = await bugAPI.getBugs({
         ...filters,
@@ -73,8 +75,13 @@ export const useBugStore = create<BugStore>((set, get) => ({
         limit: pageSize
       });
       
+      console.log('Bug列表API响应:', response.data);
+      
       if (response.data && response.data.success) {
         const { bugs, pagination: paginationData } = response.data.data;
+        
+        console.log('获取到的Bug数据:', bugs);
+        console.log('分页信息:', paginationData);
         
         set({
           bugs,
@@ -85,6 +92,8 @@ export const useBugStore = create<BugStore>((set, get) => ({
           },
           loading: false
         });
+        
+        console.log('Bug列表状态更新完成，当前Bug数量:', bugs.length);
       } else {
         throw new Error(response.data?.message || '获取Bug列表失败');
       }
@@ -98,8 +107,12 @@ export const useBugStore = create<BugStore>((set, get) => ({
   createBug: async (bugData: CreateBugRequest) => {
     set({ loading: true });
     try {
+      console.log('开始创建Bug:', bugData);
+      
       // 调用真实API
       const response = await bugAPI.createBug(bugData);
+      
+      console.log('API响应:', response.data);
       
       if (response.data && response.data.success) {
         const newBug = response.data.data;
@@ -109,12 +122,20 @@ export const useBugStore = create<BugStore>((set, get) => ({
           loading: false
         }));
 
+        console.log('Bug创建成功:', newBug);
         return newBug;
       } else {
-        throw new Error(response.data?.message || '创建Bug失败');
+        const errorMsg = response.data?.message || '创建Bug失败';
+        console.error('API返回错误:', errorMsg);
+        throw new Error(errorMsg);
       }
     } catch (error: any) {
       console.error('创建Bug失败:', error);
+      console.error('错误详情:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       set({ loading: false });
       throw error;
     }

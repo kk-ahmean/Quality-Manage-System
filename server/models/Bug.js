@@ -65,12 +65,14 @@ const bugSchema = new mongoose.Schema({
   description: {
     type: String,
     required: [true, 'Bug描述是必需的'],
-    trim: true
+    trim: true,
+    default: '批量导入的Bug'
   },
   reproductionSteps: {
     type: String,
     required: [true, '重现步骤是必需的'],
-    trim: true
+    trim: true,
+    default: '批量导入'
   },
   expectedResult: {
     type: String,
@@ -79,7 +81,8 @@ const bugSchema = new mongoose.Schema({
   actualResult: {
     type: String,
     required: [true, '实际结果是必需的'],
-    trim: true
+    trim: true,
+    default: '批量导入'
   },
   priority: {
     type: String,
@@ -115,6 +118,15 @@ const bugSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  creator: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  creatorName: {
+    type: String,
+    required: true
+  },
   assignee: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -138,31 +150,36 @@ const bugSchema = new mongoose.Schema({
     type: String,
     required: [true, '三级类目不能为空'],
     trim: true,
-    maxlength: [100, '三级类目不能超过100个字符']
+    maxlength: [100, '三级类目不能超过100个字符'],
+    default: '默认类目'
   },
   model: {
     type: String,
     required: [true, '型号不能为空'],
     trim: true,
-    maxlength: [100, '型号不能超过100个字符']
+    maxlength: [100, '型号不能超过100个字符'],
+    default: '默认型号'
   },
   sku: {
     type: String,
     required: [true, 'SKU不能为空'],
     trim: true,
-    maxlength: [100, 'SKU不能超过100个字符']
+    maxlength: [100, 'SKU不能超过100个字符'],
+    default: '默认SKU'
   },
   hardwareVersion: {
     type: String,
     required: [true, '硬件版本不能为空'],
     trim: true,
-    maxlength: [50, '硬件版本不能超过50个字符']
+    maxlength: [50, '硬件版本不能超过50个字符'],
+    default: '默认硬件版本'
   },
   softwareVersion: {
     type: String,
     required: [true, '软件版本不能为空'],
     trim: true,
-    maxlength: [50, '软件版本不能超过50个字符']
+    maxlength: [50, '软件版本不能超过50个字符'],
+    default: '默认软件版本'
   },
   dueDate: {
     type: Date,

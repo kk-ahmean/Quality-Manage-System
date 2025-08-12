@@ -44,17 +44,14 @@ apiClient.interceptors.response.use(
 
 // 认证相关API
 export const authAPI = {
-  login: (credentials: { username: string; password: string }) =>
+  login: (credentials: { name: string; password: string }) =>
     apiClient.post('/auth/login', credentials),
   
   register: (userData: { name: string; email: string; password: string; role: string }) =>
     apiClient.post('/auth/register', userData),
   
-  forgotPassword: (email: string) =>
-    apiClient.post('/auth/forgot-password', { email }),
-  
-  resetPassword: (token: string, password: string) =>
-    apiClient.post('/auth/reset-password', { token, password }),
+  changeUserPassword: (currentPassword: string, newPassword: string) =>
+    apiClient.put('/auth/change-password', { currentPassword, newPassword }),
 };
 
 // Bug相关API
@@ -108,8 +105,8 @@ export const userAPI = {
     apiClient.patch(`/users/${id}/password`, { password }),
   
   // 团队管理API
-  getTeams: () =>
-    apiClient.get('/users/teams'),
+  getTeams: (params?: any) =>
+    apiClient.get('/users/teams', { params }),
   
   createTeam: (teamData: any) =>
     apiClient.post('/users/teams', teamData),

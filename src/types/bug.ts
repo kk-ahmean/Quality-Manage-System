@@ -43,6 +43,8 @@ export interface Bug {
   assigneeName?: string;
   reporter: string;
   reporterName: string;
+  creator: string; // 创建者ID
+  creatorName?: string; // 创建者姓名
   categoryLevel3: string;
   model: string;
   sku: string;

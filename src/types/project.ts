@@ -1,5 +1,7 @@
 // 项目管理模块类型定义
 
+import { UserRole } from './user';
+
 export type ProjectLevel = 'L1' | 'L2' | 'L3';
 export type ProjectTrade = '内贸' | '外贸' | '内外贸';
 export type ProjectStage = 'EVT' | 'DVT' | 'PVT' | 'MP' | '其他';
@@ -8,8 +10,8 @@ export type TestResult = 'PASS' | 'FAIL' | '条件接收';
 
 export interface ProjectMember {
   userId: string;
-  userName: string;
-  role: '研发' | '测试' | '项目' | '产品' | 'DQE' | '结构' | 'ID' | '包装' | 'SQE' | 'SI';
+  name: string;
+  role: UserRole;
 }
 
 export interface ProjectAttachment {
@@ -58,6 +60,7 @@ export interface Project {
   creatorName: string; // 创建人姓名
   createdAt: string;
   updatedAt: string;
+  sequenceNumber?: number; // 添加序号字段，用于表格显示
 }
 
 export interface CreateProjectRequest {

@@ -1,0 +1,361 @@
+/* Select组件placeholder强制显示样式 - 兼容Ant Design 5.x */
+
+/* 基础placeholder样式 */
+.ant-select .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #bfbfbf !important;
+  font-size: 14px !important;
+  line-height: 1.5715 !important;
+  pointer-events: none !important;
+}
+
+/* Ant Design 5.x 特定样式 */
+.ant-select .ant-select-selector .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #bfbfbf !important;
+}
+
+/* 针对筛选框的Select组件特殊处理 */
+.ant-select.filter-select .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #bfbfbf !important;
+}
+
+.ant-select.filter-select .ant-select-selector .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #bfbfbf !important;
+}
+
+/* 当Select组件有值时，隐藏placeholder */
+.ant-select.ant-select-has-value .ant-select-selection-placeholder {
+  display: none !important;
+}
+
+.ant-select.ant-select-has-value .ant-select-selector .ant-select-selection-placeholder {
+  display: none !important;
+}
+
+/* 当Select组件聚焦时，确保placeholder可见 */
+.ant-select.ant-select-focused .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.ant-select.ant-select-focused .ant-select-selector .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* 暗黑模式下筛选框的placeholder样式 */
+[data-theme='dark'] .ant-select.filter-select .ant-select-selection-placeholder {
+  color: #8c8c8c !important;
+}
+
+[data-theme='dark'] .ant-select.filter-select .ant-select-selector .ant-select-selection-placeholder {
+  color: #8c8c8c !important;
+}
+
+[data-theme='dark'] .ant-select .ant-select-selection-placeholder {
+  color: #8c8c8c !important;
+}
+
+[data-theme='dark'] .ant-select .ant-select-selector .ant-select-selection-placeholder {
+  color: #8c8c8c !important;
+}
+
+/* 确保Select组件的placeholder在disabled状态下也能显示 */
+.ant-select.ant-select-disabled .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 0.5 !important;
+}
+
+.ant-select.ant-select-disabled .ant-select-selector .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 0.5 !important;
+}
+
+/* 针对不同尺寸的Select组件 */
+.ant-select.ant-select-sm .ant-select-selection-placeholder {
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+
+.ant-select.ant-select-sm .ant-select-selector .ant-select-selection-placeholder {
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+
+.ant-select.ant-select-lg .ant-select-selection-placeholder {
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+}
+
+.ant-select.ant-select-lg .ant-select-selector .ant-select-selection-placeholder {
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+}
+
+/* 确保placeholder在hover状态下也能显示 */
+.ant-select:hover .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.ant-select:hover .ant-select-selector .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* 针对allowClear属性的特殊处理 */
+.ant-select.ant-select-allow-clear .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.ant-select.ant-select-allow-clear .ant-select-selector .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* 当Select组件处于loading状态时，placeholder仍然可见 */
+.ant-select.ant-select-loading .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.ant-select.ant-select-loading .ant-select-selector .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* 针对多选模式的Select组件 */
+.ant-select.ant-select-multiple .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.ant-select.ant-select-multiple .ant-select-selector .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* 确保placeholder在Select组件展开时也能显示 */
+.ant-select.ant-select-open .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.ant-select.ant-select-open .ant-select-selector .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* 强制显示筛选框的placeholder，即使有allowClear属性 */
+.ant-select.filter-select.ant-select-allow-clear .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.ant-select.filter-select.ant-select-allow-clear .ant-select-selector .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* 确保placeholder在Select组件有值但为空字符串时也能显示 */
+.ant-select.filter-select .ant-select-selection-placeholder:not(:empty) {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.ant-select.filter-select .ant-select-selector .ant-select-selection-placeholder:not(:empty) {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* 针对Ant Design 5.x的新结构 */
+.ant-select .ant-select-selection-item {
+  display: none;
+}
+
+.ant-select.ant-select-has-value .ant-select-selection-item {
+  display: block;
+}
+
+/* 强制显示筛选框的placeholder，覆盖所有可能的选择器 */
+.ant-select.filter-select .ant-select-selection-placeholder,
+.ant-select.filter-select .ant-select-selector .ant-select-selection-placeholder,
+.ant-select.filter-select .ant-select-selection-item {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #bfbfbf !important;
+}
+
+/* 当筛选框有值时，隐藏placeholder但显示选择的值 */
+.ant-select.filter-select.ant-select-has-value .ant-select-selection-placeholder,
+.ant-select.filter-select.ant-select-has-value .ant-select-selector .ant-select-selection-placeholder {
+  display: none !important;
+}
+
+.ant-select.filter-select.ant-select-has-value .ant-select-selection-item {
+  display: block !important;
+}
+
+/* 针对Ant Design 5.x的更多选择器 */
+.ant-select .ant-select-selection-search {
+  display: none;
+}
+
+.ant-select.ant-select-has-value .ant-select-selection-search {
+  display: block;
+}
+
+/* 强制显示筛选框的placeholder，使用更具体的选择器 */
+.ant-select.filter-select .ant-select-selection-placeholder,
+.ant-select.filter-select .ant-select-selector .ant-select-selection-placeholder,
+.ant-select.filter-select .ant-select-selection-item,
+.ant-select.filter-select .ant-select-selection-search {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #bfbfbf !important;
+}
+
+/* 当筛选框有值时，隐藏placeholder但显示选择的值 */
+.ant-select.filter-select.ant-select-has-value .ant-select-selection-placeholder,
+.ant-select.filter-select.ant-select-has-value .ant-select-selector .ant-select-selection-placeholder {
+  display: none !important;
+}
+
+.ant-select.filter-select.ant-select-has-value .ant-select-selection-item,
+.ant-select.filter-select.ant-select-has-value .ant-select-selection-search {
+  display: block !important;
+}
+
+/* 针对Ant Design 5.x的placeholder显示问题，使用更强的选择器 */
+.ant-select.filter-select .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #bfbfbf !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* 确保placeholder在所有状态下都可见 */
+.ant-select.filter-select:not(.ant-select-has-value) .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* 针对Ant Design 5.x的特定DOM结构 */
+.ant-select.filter-select .ant-select-selector {
+  position: relative;
+}
+
+.ant-select.filter-select .ant-select-selector .ant-select-selection-placeholder {
+  position: absolute !important;
+  top: 50% !important;
+  left: 12px !important;
+  transform: translateY(-50%) !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #bfbfbf !important;
+  pointer-events: none !important;
+  z-index: 1 !important;
+}
+
+/* 当有值时隐藏placeholder */
+.ant-select.filter-select.ant-select-has-value .ant-select-selector .ant-select-selection-placeholder {
+  display: none !important;
+}
+
+/* 针对初始状态的强制显示 */
+.ant-select.filter-select:not(.ant-select-has-value) .ant-select-selection-placeholder,
+.ant-select.filter-select:not(.ant-select-has-value) .ant-select-selector .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #bfbfbf !important;
+}
+
+/* 使用CSS动画强制重新渲染placeholder */
+.ant-select.filter-select .ant-select-selection-placeholder {
+  animation: placeholder-show 0.1s ease-in-out;
+}
+
+@keyframes placeholder-show {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* 针对Ant Design 5.x的初始化问题，使用更强的选择器 */
+.ant-select.filter-select .ant-select-selection-placeholder,
+.ant-select.filter-select .ant-select-selector .ant-select-selection-placeholder {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #bfbfbf !important;
+  position: static !important;
+  transform: none !important;
+}
+
+/* 确保placeholder在组件挂载后立即显示 */
+.ant-select.filter-select {
+  position: relative;
+}
+
+.ant-select.filter-select .ant-select-selection-placeholder {
+  position: static !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #bfbfbf !important;
+  transform: none !important;
+  left: auto !important;
+  top: auto !important;
+}
+
+/* 针对Ant Design 5.x的DOM结构变化 */
+.ant-select.filter-select .ant-select-selector .ant-select-selection-placeholder {
+  position: static !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #bfbfbf !important;
+  transform: none !important;
+  left: auto !important;
+  top: auto !important;
+} 

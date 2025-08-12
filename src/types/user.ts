@@ -1,8 +1,8 @@
 export interface User {
   id: string
-  username: string
+  _id?: string // MongoDB的_id字段
   email: string
-  name: string
+  name: string // 主要用户名字段
   role: UserRole
   status: UserStatus
   avatar?: string
@@ -14,6 +14,7 @@ export interface User {
   createdAt: string
   updatedAt: string
   lastLoginAt?: string
+  sequenceNumber?: number // 添加序号字段，用于表格显示
 }
 
 export type UserRole = 'admin' | 'product_engineer' | 'project_engineer' | 'developer' | 'dqe' | 'tester'
@@ -22,22 +23,32 @@ export type UserStatus = 'active' | 'inactive'
 
 // 权限定义
 export type Permission = 
+  // 用户管理权限
   | 'user:read'
   | 'user:create'
   | 'user:update'
   | 'user:delete'
+  // 团队管理权限
   | 'team:read'
   | 'team:create'
   | 'team:update'
   | 'team:delete'
+  // Bug管理权限
   | 'bug:read'
   | 'bug:create'
   | 'bug:update'
   | 'bug:delete'
+  // 任务管理权限
   | 'task:read'
   | 'task:create'
   | 'task:update'
   | 'task:delete'
+  // 项目管理权限
+  | 'project:read'
+  | 'project:create'
+  | 'project:update'
+  | 'project:delete'
+  // 系统权限
   | 'dashboard:read'
   | 'system:settings'
 
@@ -50,6 +61,12 @@ export interface TeamMember {
   user: string
   role: 'leader' | 'member' | 'observer'
   joinedAt?: string
+  userInfo?: { // 用户信息
+    id: string
+    name: string
+    email: string
+    role: string
+  }
 }
 
 export interface Team {
@@ -58,6 +75,14 @@ export interface Team {
   description?: string
   members: TeamMember[] // 团队成员数组
   leader: string // 团队负责人ID
+  leaderInfo?: { // 团队负责人信息
+    id: string
+    name: string
+    email: string
+    role: string
+  }
+  creator: string // 创建者ID
+  creatorName?: string // 创建者姓名
   department?: string
   status?: string
   tags?: string[]
@@ -68,9 +93,8 @@ export interface Team {
 }
 
 export interface CreateUserRequest {
-  username: string
   email: string
-  name: string
+  name: string // 主要用户名字段
   password?: string // 改为可选字段
   role: UserRole
   phone?: string

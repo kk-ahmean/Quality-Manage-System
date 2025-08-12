@@ -222,18 +222,70 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   // 权限检查 - 是否可以编辑项目
   canEditProject: (project: Project) => {
     const currentUser = useAuthStore.getState().user;
-    if (!currentUser) return false;
+    if (!currentUser) {
+      console.log('权限检查失败: 用户未登录');
+      return false;
+    }
     
-    // 创建人或管理员可以编辑
-    return project.creator === currentUser.id || currentUser.role === 'admin';
+    // 管理员可以编辑所有项目
+    if (currentUser.role === 'admin') {
+      console.log('权限检查通过: 管理员权限');
+      return true;
+    }
+    
+    // 项目创建者可以编辑自己的项目
+    if (project.creator === currentUser.id || project.creator === currentUser._id) {
+      console.log('权限检查通过: 项目创建者', {
+        projectCreator: project.creator,
+        currentUserId: currentUser.id,
+        currentUser_id: currentUser._id
+      });
+      return true;
+    }
+    
+    // 检查用户是否有项目编辑权限
+    const hasEditPermission = currentUser.permissions?.includes('project:update');
+    console.log('权限检查结果:', {
+      hasEditPermission,
+      userPermissions: currentUser.permissions,
+      projectCreator: project.creator,
+      currentUserId: currentUser.id
+    });
+    return hasEditPermission || false;
   },
 
   // 权限检查 - 是否可以删除项目
   canDeleteProject: (project: Project) => {
     const currentUser = useAuthStore.getState().user;
-    if (!currentUser) return false;
+    if (!currentUser) {
+      console.log('权限检查失败: 用户未登录');
+      return false;
+    }
     
-    // 创建人或管理员可以删除
-    return project.creator === currentUser.id || currentUser.role === 'admin';
+    // 管理员可以删除所有项目
+    if (currentUser.role === 'admin') {
+      console.log('权限检查通过: 管理员权限');
+      return true;
+    }
+    
+    // 项目创建者可以删除自己的项目
+    if (project.creator === currentUser.id || project.creator === currentUser._id) {
+      console.log('权限检查通过: 项目创建者', {
+        projectCreator: project.creator,
+        currentUserId: currentUser.id,
+        currentUser_id: currentUser._id
+      });
+      return true;
+    }
+    
+    // 检查用户是否有项目删除权限
+    const hasDeletePermission = currentUser.permissions?.includes('project:delete');
+    console.log('权限检查结果:', {
+      hasDeletePermission,
+      userPermissions: currentUser.permissions,
+      projectCreator: project.creator,
+      currentUserId: currentUser.id
+    });
+    return hasDeletePermission || false;
   }
 })); 

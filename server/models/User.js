@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'manager', 'developer', 'tester', 'viewer'],
+    enum: ['admin', 'manager', 'developer', 'tester', 'viewer', 'dqe', '项目工程师', '产品工程师', 'product_engineer', 'project_engineer', '管理员', 'DQE', '测试员'],
     default: 'developer'
   },
   status: {
@@ -39,13 +39,32 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  position: {
+    type: String,
+    default: ''
+  },
   phone: {
     type: String,
     default: ''
   },
   permissions: [{
     type: String,
-    enum: ['read', 'write', 'delete', 'admin']
+    enum: [
+      // 用户管理权限
+      'user:read', 'user:create', 'user:update', 'user:delete',
+      // 团队管理权限
+      'team:read', 'team:create', 'team:update', 'team:delete',
+      // Bug管理权限
+      'bug:read', 'bug:create', 'bug:update', 'bug:delete',
+      // 任务管理权限
+      'task:read', 'task:create', 'task:update', 'task:delete',
+      // 项目管理权限
+      'project:read', 'project:create', 'project:update', 'project:delete',
+      // 系统权限
+      'dashboard:read', 'system:settings',
+      // 兼容旧权限
+      'read', 'write', 'delete', 'admin'
+    ]
   }],
   lastLoginAt: {
     type: Date,

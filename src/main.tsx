@@ -7,6 +7,7 @@ import enUS from 'antd/locale/en_US.js'
 import App from './App.tsx'
 import './index.css'
 import './styles/darkMode.css'
+import './styles/selectPlaceholder.css'
 
 // 创建语言上下文
 const LanguageContext = React.createContext<{

@@ -1,6 +1,6 @@
 import express from 'express';
 import Bug from '../models/Bug.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireCreatorOrAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -79,7 +79,14 @@ router.get('/', authMiddleware, async (req, res) => {
       const bugsWithSequence = bugs.map((bug, idx) => ({
         ...bug,
         id: bug._id,
-        sequenceNumber: idx + 1
+        sequenceNumber: idx + 1,
+        // 确保creator和reporter字段格式正确
+        creator: bug.creator,
+        creatorName: bug.creatorName,
+        reporter: bug.reporter,
+        reporterName: bug.reporterName,
+        assignee: bug.assignee,
+        assigneeName: bug.assigneeName
       }));
       const paginatedBugs = bugsWithSequence.slice(skip, skip + parseInt(limit));
       
@@ -143,6 +150,7 @@ router.get('/', authMiddleware, async (req, res) => {
       // 执行查询
       const bugs = await Bug.find(query)
         .populate('reporter', 'name email')
+        .populate('creator', 'name email')
         .populate('assignee', 'name email')
         .sort(sort)
         .skip(skip)
@@ -151,10 +159,25 @@ router.get('/', authMiddleware, async (req, res) => {
       // 获取总数
       const total = await Bug.countDocuments(query);
 
+      // 处理返回数据，确保字段格式正确
+      const processedBugs = bugs.map(bug => {
+        const bugObj = bug.toObject();
+        return {
+          ...bugObj,
+          id: bugObj._id,
+          creator: bugObj.creator._id || bugObj.creator,
+          creatorName: bugObj.creator.name || bugObj.creatorName,
+          reporter: bugObj.reporter._id || bugObj.reporter,
+          reporterName: bugObj.reporter.name || bugObj.reporterName,
+          assignee: bugObj.assignee ? (bugObj.assignee._id || bugObj.assignee) : null,
+          assigneeName: bugObj.assignee ? (bugObj.assignee.name || bugObj.assigneeName) : ''
+        };
+      });
+
       res.json({
         success: true,
         data: {
-          bugs: bugs,
+          bugs: processedBugs,
           pagination: {
             current: parseInt(page),
             pageSize: parseInt(limit),
@@ -179,6 +202,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const bug = await Bug.findById(req.params.id)
       .populate('reporter', 'name email')
+      .populate('creator', 'name email')
       .populate('assignee', 'name email')
       .populate('comments.author', 'name email');
 
@@ -189,9 +213,22 @@ router.get('/:id', authMiddleware, async (req, res) => {
       });
     }
 
+    // 处理返回数据，确保字段格式正确
+    const bugObj = bug.toObject();
+    const processedBug = {
+      ...bugObj,
+      id: bugObj._id,
+      creator: bugObj.creator._id || bugObj.creator,
+      creatorName: bugObj.creator.name || bugObj.creatorName,
+      reporter: bugObj.reporter._id || bugObj.reporter,
+      reporterName: bugObj.reporter.name || bugObj.reporterName,
+      assignee: bugObj.assignee ? (bugObj.assignee._id || bugObj.assignee) : null,
+      assigneeName: bugObj.assignee ? (bugObj.assignee.name || bugObj.assigneeName) : ''
+    };
+
     res.json({
       success: true,
-      data: bug
+      data: processedBug
     });
   } catch (error) {
     console.error('获取Bug详情失败:', error);
@@ -208,11 +245,53 @@ router.post('/', authMiddleware, async (req, res) => {
   try {
     if (global.memoryDB) {
       // 内存数据库模式
+      const bugData = { ...req.body };
+      
+      // 确保必填字段有默认值
+      if (!bugData.description) bugData.description = '批量导入的Bug';
+      if (!bugData.reproductionSteps) bugData.reproductionSteps = '批量导入';
+      if (!bugData.actualResult) bugData.actualResult = '批量导入';
+      if (!bugData.categoryLevel3) bugData.categoryLevel3 = '默认类目';
+      if (!bugData.model) bugData.model = '默认型号';
+      if (!bugData.sku) bugData.sku = '默认SKU';
+      if (!bugData.hardwareVersion) bugData.hardwareVersion = '默认硬件版本';
+      if (!bugData.softwareVersion) bugData.softwareVersion = '默认软件版本';
+      
+      // 确保枚举字段的值有效
+      const validPriorities = ['P0', 'P1', 'P2', 'P3'];
+      const validSeverities = ['S', 'A', 'B', 'C'];
+      const validTypes = ['电气性能', '可靠性', '环保', '安规', '资料', '兼容性', '复测与确认', '设备特性', '其它'];
+      const validResponsibilities = ['软件', '硬件', '结构', 'ID', '包装', '产品', '项目', '供应商', 'DQE', '实验室'];
+      const validStatuses = ['新建', '处理中', '待验证', '已解决', '已关闭', '重新打开'];
+      
+      if (bugData.priority && !validPriorities.includes(bugData.priority)) {
+        bugData.priority = 'P3';
+      }
+      if (bugData.severity && !validSeverities.includes(bugData.severity)) {
+        bugData.severity = 'C';
+      }
+      if (bugData.type && !validTypes.includes(bugData.type)) {
+        bugData.type = '电气性能';
+      }
+      if (bugData.responsibility && !validResponsibilities.includes(bugData.responsibility)) {
+        bugData.responsibility = '软件';
+      }
+      if (bugData.status && !validStatuses.includes(bugData.status)) {
+        bugData.status = '新建';
+      }
+      
+      // 确保assignee字段格式正确
+      if (bugData.assignee === '') {
+        bugData.assignee = null;
+      }
+      
       const newBug = {
         _id: Date.now().toString(),
-        ...req.body,
+        ...bugData,
         reporter: req.user.id,
         reporterName: req.user.name,
+        creator: req.user.id,
+        creatorName: req.user.name,
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -233,8 +312,50 @@ router.post('/', authMiddleware, async (req, res) => {
       const bugData = {
         ...req.body,
         reporter: req.user.id,
-        reporterName: req.user.name
+        reporterName: req.user.name,
+        creator: req.user.id,
+        creatorName: req.user.name
       };
+
+      // 确保必填字段有默认值
+      if (!bugData.description) bugData.description = '批量导入的Bug';
+      if (!bugData.reproductionSteps) bugData.reproductionSteps = '批量导入';
+      if (!bugData.actualResult) bugData.actualResult = '批量导入';
+      if (!bugData.categoryLevel3) bugData.categoryLevel3 = '默认类目';
+      if (!bugData.model) bugData.model = '默认型号';
+      if (!bugData.sku) bugData.sku = '默认SKU';
+      if (!bugData.hardwareVersion) bugData.hardwareVersion = '默认硬件版本';
+      if (!bugData.softwareVersion) bugData.softwareVersion = '默认软件版本';
+      
+      // 确保枚举字段的值有效
+      const validPriorities = ['P0', 'P1', 'P2', 'P3'];
+      const validSeverities = ['S', 'A', 'B', 'C'];
+      const validTypes = ['电气性能', '可靠性', '环保', '安规', '资料', '兼容性', '复测与确认', '设备特性', '其它'];
+      const validResponsibilities = ['软件', '硬件', '结构', 'ID', '包装', '产品', '项目', '供应商', 'DQE', '实验室'];
+      const validStatuses = ['新建', '处理中', '待验证', '已解决', '已关闭', '重新打开'];
+      
+      if (bugData.priority && !validPriorities.includes(bugData.priority)) {
+        bugData.priority = 'P3';
+      }
+      if (bugData.severity && !validSeverities.includes(bugData.severity)) {
+        bugData.severity = 'C';
+      }
+      if (bugData.type && !validTypes.includes(bugData.type)) {
+        bugData.type = '电气性能';
+      }
+      if (bugData.responsibility && !validResponsibilities.includes(bugData.responsibility)) {
+        bugData.responsibility = '软件';
+      }
+      if (bugData.status && !validStatuses.includes(bugData.status)) {
+        bugData.status = '新建';
+      }
+      
+      // 确保assignee字段格式正确
+      if (bugData.assignee === '') {
+        bugData.assignee = null;
+      }
+
+      console.log('创建Bug数据:', bugData);
 
       const bug = new Bug(bugData);
       await bug.save();
@@ -242,6 +363,7 @@ router.post('/', authMiddleware, async (req, res) => {
       // 重新查询以获取关联数据
       const savedBug = await Bug.findById(bug._id)
         .populate('reporter', 'name email')
+        .populate('creator', 'name email')
         .populate('assignee', 'name email');
 
       res.status(201).json({
@@ -270,10 +392,78 @@ router.put('/:id', authMiddleware, async (req, res) => {
         return res.status(404).json({ success: false, message: 'Bug不存在' });
       }
       const bug = global.memoryDB.bugs[bugIndex];
+      
+      // 权限检查：所有用户都可以编辑Bug，但权限不同
+      const isAdmin = req.user.role === 'admin';
+      const isCreator = bug.creator === req.user.id || bug.creator === req.user._id;
+      const isReporter = bug.reporter === req.user.id || bug.reporter === req.user._id;
+      
+      console.log('Bug编辑权限检查:', {
+        userId: req.user.id,
+        user_id: req.user._id,
+        userRole: req.user.role,
+        bugCreator: bug.creator,
+        bugReporter: bug.reporter,
+        isAdmin,
+        isCreator,
+        isReporter
+      });
+      
+      // 检查是否尝试编辑核心字段（非管理员且非创建者/报告者）
+      if (!isAdmin && !isCreator && !isReporter) {
+        const coreFields = ['title', 'description', 'reproductionSteps', 'expectedResult', 'actualResult'];
+        const hasCoreFieldChanges = coreFields.some(field => req.body.hasOwnProperty(field));
+        
+        console.log('权限检查详情:', {
+          requestBody: req.body,
+          requestBodyKeys: Object.keys(req.body),
+          coreFields,
+          hasCoreFieldChanges,
+          attemptedCoreFields: Object.keys(req.body).filter(field => coreFields.includes(field))
+        });
+        
+        if (hasCoreFieldChanges) {
+          console.log('权限不足，拒绝编辑核心字段:', {
+            attemptedFields: Object.keys(req.body).filter(field => coreFields.includes(field))
+          });
+          return res.status(403).json({ 
+            success: false, 
+            message: '权限不足，只有管理员、创建者或报告者可以编辑Bug的核心字段（标题、描述、复现步骤、预期结果、实际结果）' 
+          });
+        }
+      }
+      
+      // 记录更新前的Bug信息
+      console.log('更新Bug:', {
+        bugId: bug._id,
+        oldData: {
+          title: bug.title,
+          status: bug.status,
+          priority: bug.priority
+        },
+        newData: req.body
+      });
+      
       Object.assign(bug, req.body);
       bug.updatedAt = new Date();
       global.memoryDB.bugs[bugIndex] = bug;
-      res.json({ success: true, message: 'Bug更新成功', data: { ...bug, id: bug._id } });
+      
+      console.log('Bug更新成功');
+      
+      // 返回处理后的Bug信息，确保字段格式正确
+      const { _id, ...bugResponse } = bug;
+      const processedBug = {
+        ...bugResponse,
+        id: _id,
+        creator: bug.creator,
+        creatorName: bug.creatorName,
+        reporter: bug.reporter,
+        reporterName: bug.reporterName,
+        assignee: bug.assignee,
+        assigneeName: bug.assigneeName
+      };
+      
+      res.json({ success: true, message: 'Bug更新成功', data: processedBug });
       return;
     }
     // MongoDB模式
@@ -286,21 +476,88 @@ router.put('/:id', authMiddleware, async (req, res) => {
       });
     }
 
+    // 权限检查：所有用户都可以编辑Bug，但权限不同
+    const isAdmin = req.user.role === 'admin';
+    const isCreator = bug.creator.toString() === req.user.id || bug.creator.toString() === req.user._id;
+    const isReporter = bug.reporter.toString() === req.user.id || bug.reporter.toString() === req.user._id;
+    
+    console.log('Bug编辑权限检查 (MongoDB):', {
+      userId: req.user.id,
+      user_id: req.user._id,
+      userRole: req.user.role,
+      bugCreator: bug.creator.toString(),
+      bugReporter: bug.reporter.toString(),
+      isAdmin,
+      isCreator,
+      isReporter
+    });
+    
+    // 检查是否尝试编辑核心字段（非管理员且非创建者/报告者）
+    if (!isAdmin && !isCreator && !isReporter) {
+      const coreFields = ['title', 'description', 'reproductionSteps', 'expectedResult', 'actualResult'];
+      const hasCoreFieldChanges = coreFields.some(field => req.body.hasOwnProperty(field));
+      
+      console.log('权限检查详情 (MongoDB):', {
+        requestBody: req.body,
+        requestBodyKeys: Object.keys(req.body),
+        coreFields,
+        hasCoreFieldChanges,
+        attemptedCoreFields: Object.keys(req.body).filter(field => coreFields.includes(field))
+      });
+      
+      if (hasCoreFieldChanges) {
+        console.log('权限不足，拒绝编辑核心字段 (MongoDB):', {
+          attemptedFields: Object.keys(req.body).filter(field => coreFields.includes(field))
+        });
+        return res.status(403).json({
+          success: false,
+          message: '权限不足，只有管理员、创建者或报告者可以编辑Bug的核心字段（标题、描述、复现步骤、预期结果、实际结果）'
+        });
+      }
+    }
+
+    // 记录更新前的Bug信息
+    console.log('更新Bug (MongoDB):', {
+      bugId: bug._id,
+      oldData: {
+        title: bug.title,
+        status: bug.status,
+        priority: bug.priority
+      },
+      newData: req.body
+    });
+
     // 更新Bug数据
     Object.assign(bug, req.body);
     bug.updatedAt = new Date();
     
     await bug.save();
 
+    console.log('Bug更新成功 (MongoDB)');
+
     // 重新查询以获取关联数据
     const updatedBug = await Bug.findById(bug._id)
       .populate('reporter', 'name email')
+      .populate('creator', 'name email')
       .populate('assignee', 'name email');
+
+    // 处理返回数据，确保字段格式正确
+    const bugObj = updatedBug.toObject();
+    const processedBug = {
+      ...bugObj,
+      id: bugObj._id,
+      creator: bugObj.creator._id || bugObj.creator,
+      creatorName: bugObj.creator.name || bugObj.creatorName,
+      reporter: bugObj.reporter._id || bugObj.reporter,
+      reporterName: bugObj.reporter.name || bugObj.reporterName,
+      assignee: bugObj.assignee ? (bugObj.assignee._id || bugObj.assignee) : null,
+      assigneeName: bugObj.assignee ? (bugObj.assignee.name || bugObj.assigneeName) : ''
+    };
 
     res.json({
       success: true,
       message: 'Bug更新成功',
-      data: updatedBug
+      data: processedBug
     });
   } catch (error) {
     console.error('更新Bug失败:', error);
@@ -313,7 +570,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 });
 
 // 删除Bug
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', authMiddleware, requireCreatorOrAdmin('bug'), async (req, res) => {
   try {
     const bug = await Bug.findById(req.params.id);
     
@@ -367,6 +624,7 @@ router.patch('/:id/assign', authMiddleware, async (req, res) => {
     // 重新查询以获取关联数据
     const updatedBug = await Bug.findById(bug._id)
       .populate('reporter', 'name email')
+      .populate('creator', 'name email')
       .populate('assignee', 'name email');
 
     res.json({
@@ -417,6 +675,7 @@ router.patch('/:id/status', authMiddleware, async (req, res) => {
     // 重新查询以获取关联数据
     const updatedBug = await Bug.findById(bug._id)
       .populate('reporter', 'name email')
+      .populate('creator', 'name email')
       .populate('assignee', 'name email');
 
     res.json({
@@ -494,7 +753,7 @@ router.post('/:id/comments', authMiddleware, async (req, res) => {
 router.get('/statistics', authMiddleware, async (req, res) => {
   try {
     // 获取所有Bug
-    const bugs = await Bug.find().populate('reporter', 'name email').populate('assignee', 'name email');
+    const bugs = await Bug.find().populate('reporter', 'name email').populate('creator', 'name email').populate('assignee', 'name email');
     
     // 按状态统计
     const byStatus = {};

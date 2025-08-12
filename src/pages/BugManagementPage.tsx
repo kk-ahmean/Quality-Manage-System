@@ -8,6 +8,8 @@ import { logSystemActivity } from '../stores/authStore';
 import { useAuthStore } from '../stores/authStore';
 import BulkImportModal from '../components/common/BulkImportModal';
 import { useUserStore } from '../stores/userStore';
+import { Permission } from '../types/user';
+import { canShowDeleteButton, hasPermission } from '../utils/permissions';
 
 const { Option } = Select;
 
@@ -141,9 +143,12 @@ const BugManagementPage: React.FC = () => {
     },
     {
       title: '创建人',
-      dataIndex: 'reporterName',
-      key: 'reporterName',
+      dataIndex: 'creatorName',
+      key: 'creatorName',
       width: 100,
+      render: (name: string, record: Bug) => {
+        return name || record.reporterName || '未知';
+      },
     },
     {
       title: '创建时间',
@@ -162,7 +167,27 @@ const BugManagementPage: React.FC = () => {
             items: [
               { key: 'edit', label: '编辑', icon: <EditOutlined />, onClick: async () => await handleEdit(record) },
               { key: 'comment', label: '评论', icon: <CommentOutlined />, onClick: () => setCommentModal({ visible: true, bug: record }) },
-              // 删除相关项已移除
+              ...(canShowDeleteButton(
+                (currentUser?.permissions || []) as Permission[],
+                currentUser?.id || '',
+                record.creator || record.reporter || '',
+                'bug'
+              ) ? [{
+                key: 'delete',
+                label: (
+                  <Popconfirm
+                    title="确定要删除这个Bug吗？"
+                    description="删除后无法恢复，请谨慎操作。"
+                    onConfirm={() => handleDelete(record.id)}
+                    okText="确定"
+                    cancelText="取消"
+                  >
+                    <span style={{ color: '#ff4d4f' }}>删除</span>
+                  </Popconfirm>
+                ),
+                icon: <DeleteOutlined />,
+                danger: true
+              }] : [])
             ]
           }}
         >
@@ -176,7 +201,7 @@ const BugManagementPage: React.FC = () => {
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
-      console.log('Bug创建数据:', values); // 调试信息
+      // 调试信息 - 已隐藏
       
       // 根据assignee用户ID查找对应的用户名
       let assigneeName = '';
@@ -185,13 +210,16 @@ const BugManagementPage: React.FC = () => {
         assigneeName = user ? user.name : '';
       }
       
-      // 添加assigneeName字段
+      // 添加assigneeName和creator字段
       const bugData = {
         ...values,
-        assigneeName: assigneeName
+        assigneeName: assigneeName,
+        creator: currentUser?.id || '',
+        creatorName: currentUser?.name || ''
       };
       
-      await bugStore.createBug(bugData);
+      const newBug = await bugStore.createBug(bugData);
+      // 调试信息 - 已隐藏
       
       // 记录创建Bug日志
       if (currentUser) {
@@ -201,7 +229,10 @@ const BugManagementPage: React.FC = () => {
       setModalVisible(false);
       form.resetFields();
       message.success('Bug创建成功');
-      bugStore.fetchBugs();
+      
+      // 重新获取Bug列表并显示调试信息
+      await bugStore.fetchBugs();
+      // 调试信息 - 已隐藏
     } catch (e) {
       console.error('Bug创建失败:', e); // 调试信息
       message.error('Bug创建失败: ' + (e as Error).message);
@@ -209,11 +240,58 @@ const BugManagementPage: React.FC = () => {
   };
 
   // 编辑Bug
-  // 检查用户是否有编辑Bug核心字段的权限
+  // 检查用户是否有编辑Bug核心字段的权限（标题、描述、复现步骤、预期结果、实际结果）
   const canEditBugCoreFields = (bug: Bug | null) => {
     if (!currentUser || !bug) return false;
-    // 管理员或Bug创建者可以编辑所有字段
-    return currentUser.role === 'admin' || bug.reporter === currentUser.id;
+    
+    // 调试信息 - 已隐藏
+    
+    // 管理员、Bug创建者或报告者可以编辑核心字段
+    const canEdit = currentUser.role === 'admin' || 
+                   bug.creator === currentUser.id || 
+                   bug.creator === currentUser._id ||
+                   bug.reporter === currentUser.id || 
+                   bug.reporter === currentUser._id;
+    
+    // 调试信息 - 已隐藏
+    return canEdit;
+  };
+
+  // 检查用户是否可以编辑Bug（所有用户都可以编辑，但权限不同）
+  const canEditBug = (bug: Bug | null) => {
+    if (!currentUser || !bug) {
+      // 调试信息 - 已隐藏
+      return false;
+    }
+    
+    // 所有登录用户都可以编辑Bug
+    return true;
+  };
+
+  // 创建者可以编辑所有字段
+  const canEditAllFields = (bug: Bug | null) => {
+    if (!currentUser || !bug) {
+      // 调试信息 - 已隐藏
+      return false;
+    }
+    
+    // 调试信息 - 已隐藏
+    
+    // 管理员可以编辑所有Bug
+    if (currentUser.role === 'admin') {
+      // 调试信息 - 已隐藏
+      return true;
+    }
+    
+    // 检查是否为创建者或报告者
+    const isCreator = bug.creator && (bug.creator === currentUser.id || bug.creator === currentUser._id);
+    const isReporter = bug.reporter && (bug.reporter === currentUser.id || bug.reporter === currentUser._id);
+    
+    // 调试信息 - 已隐藏
+    
+    const canEdit = isCreator || isReporter;
+    // 调试信息 - 已隐藏
+    return canEdit;
   };
 
   const handleEdit = async (bug: Bug) => {
@@ -229,18 +307,17 @@ const BugManagementPage: React.FC = () => {
     // 根据assigneeName查找对应的用户ID
     let assigneeId = '';
     
-    console.log('开始编辑Bug，原始数据:', bug); // 调试信息
-    console.log('当前用户列表:', currentUsers.map(u => ({ id: u.id, name: u.name }))); // 调试信息
+    // 调试信息 - 已隐藏
     
     if (bug.assigneeName) {
       // 如果assigneeName存在，根据姓名查找用户ID
       const user = currentUsers.find((u: any) => u.name === bug.assigneeName.trim());
       assigneeId = user ? user.id : '';
-      console.log('根据assigneeName查找用户:', bug.assigneeName, '找到用户:', user); // 调试信息
+      // 调试信息 - 已隐藏
     } else if (bug.assignee) {
       // 如果assignee存在，直接使用
       assigneeId = Array.isArray(bug.assignee) ? bug.assignee[0] || '' : bug.assignee;
-      console.log('使用assignee ID:', assigneeId); // 调试信息
+      // 调试信息 - 已隐藏
     }
     
     const formValues = {
@@ -248,8 +325,7 @@ const BugManagementPage: React.FC = () => {
       assignee: assigneeId
     };
     
-    console.log('编辑Bug表单值:', formValues); // 调试信息
-    console.log('设置的assignee值:', assigneeId); // 调试信息
+    // 调试信息 - 已隐藏
     
     editForm.setFieldsValue(formValues);
     setEditModalVisible(true);
@@ -259,21 +335,88 @@ const BugManagementPage: React.FC = () => {
     try {
       const values = await editForm.validateFields();
       
+      // 调试信息 - 已隐藏
+      
       // 根据assignee用户ID查找对应的用户名
       let assigneeName = '';
       if (values.assignee) {
         const user = users.find((u: any) => u.id === values.assignee);
         assigneeName = user ? user.name : '';
+        // 调试信息 - 已隐藏
       }
       
-      // 添加assigneeName字段
+      // 检查权限
+      if (bugStore.selectedBug) {
+        const canEditCore = canEditBugCoreFields(bugStore.selectedBug);
+        // 调试信息 - 已隐藏
+        
+        // 检查是否尝试编辑核心字段 - 只检查实际修改的字段
+        const coreFields = ['title', 'description', 'reproductionSteps', 'expectedResult', 'actualResult'];
+        const hasCoreFieldChanges = coreFields.some(field => {
+          // 只检查字段值是否真的发生了变化
+          const oldValue = bugStore.selectedBug[field];
+          const newValue = values[field];
+          const hasChanged = oldValue !== newValue;
+          // 调试信息 - 已隐藏
+          return hasChanged;
+        });
+        // 调试信息 - 已隐藏
+        
+        if (hasCoreFieldChanges && !canEditCore) {
+          message.error('权限不足，您不能编辑Bug的核心字段');
+          return;
+        }
+      }
+      
+      // 构建只包含修改字段的数据
+      const changedFields: any = {};
+      let hasAnyChanges = false;
+      
+      // 调试信息 - 已隐藏
+      
+      // 检查每个字段是否发生了变化
+      Object.keys(values).forEach(field => {
+        const oldValue = bugStore.selectedBug?.[field];
+        const newValue = values[field];
+        
+        // 处理特殊字段
+        if (field === 'assignee') {
+          // assignee字段需要特殊处理，因为可能是从assigneeName转换来的
+          const oldAssigneeId = bugStore.selectedBug?.assignee;
+          if (newValue !== oldAssigneeId) {
+            changedFields[field] = newValue;
+            hasAnyChanges = true;
+            // 调试信息 - 已隐藏
+          }
+        } else if (oldValue !== newValue) {
+          changedFields[field] = newValue;
+          hasAnyChanges = true;
+                      // 调试信息 - 已隐藏
+        } else {
+          // 调试信息 - 已隐藏
+        }
+      });
+      
+      // 调试信息 - 已隐藏
+      
+      // 如果没有变化，提示用户
+      if (!hasAnyChanges) {
+        message.warning('没有检测到任何字段变更，请修改后再提交');
+        return;
+      }
+      
+      // 添加必要的字段
       const bugData = {
-        ...values,
+        ...changedFields,
         id: bugStore.selectedBug?.id,
         assigneeName: assigneeName
       };
       
+      // 调试信息 - 已隐藏
+      
       await bugStore.updateBug(bugData);
+      
+      // 调试信息 - 已隐藏
       
       // 记录更新Bug日志
       if (currentUser) {
@@ -282,9 +425,33 @@ const BugManagementPage: React.FC = () => {
       
       setEditModalVisible(false);
       message.success('Bug更新成功');
-      bugStore.fetchBugs();
-    } catch (e) {
-      message.error('Bug更新失败');
+      
+      // 确保数据正确刷新
+      try {
+        // 调试信息 - 已隐藏
+        await bugStore.fetchBugs();
+                  // 调试信息 - 已隐藏
+        
+        // 验证更新后的数据
+        const updatedBug = bugStore.bugs.find(b => b.id === bugStore.selectedBug?.id);
+        if (updatedBug) {
+          // 调试信息 - 已隐藏
+        } else {
+          console.warn('未找到更新后的Bug，可能刷新失败');
+        }
+      } catch (error) {
+        console.error('Bug列表刷新失败:', error);
+        // 即使刷新失败，也不影响编辑成功
+      }
+    } catch (e: any) {
+      console.error('Bug更新失败:', e);
+      if (e.response) {
+        console.error('响应状态:', e.response.status);
+        console.error('响应数据:', e.response.data);
+        message.error(`Bug更新失败: ${e.response.data?.message || e.message}`);
+      } else {
+        message.error(`Bug更新失败: ${e.message}`);
+      }
     }
   };
 
@@ -309,17 +476,33 @@ const BugManagementPage: React.FC = () => {
   // 批量导入处理
   const handleBulkImport = async (data: any[]) => {
     try {
-      console.log('开始批量导入，数据条数:', data.length); // 调试信息
+      // 调试信息 - 已隐藏
+      
+      // 验证数据格式
+      if (!Array.isArray(data) || data.length === 0) {
+        throw new Error('导入数据格式不正确或为空');
+      }
+      
+      // 检查必要字段
+      const firstItem = data[0];
+              // 调试信息 - 已隐藏
+      
+      const requiredFields = ['title', 'Bug标题'];
+      const hasRequiredField = requiredFields.some(field => firstItem[field]);
+      
+      if (!hasRequiredField) {
+        throw new Error('数据缺少必要字段（标题）。请确保Excel文件包含"标题"或"Bug标题"列');
+      }
       
       // 获取系统中最大的编号
-      const maxSequenceNumber = Math.max(0, ...bugStore.bugs.map(bug => bug.sequenceNumber || 0));
-      console.log('系统中最大编号:', maxSequenceNumber); // 调试信息
-      console.log('系统中所有Bug编号:', bugStore.bugs.map(bug => ({ id: bug.id, sequenceNumber: bug.sequenceNumber }))); // 调试信息
+      const bugs = bugStore.bugs || [];
+      const maxSequenceNumber = Math.max(0, ...bugs.map(bug => bug.sequenceNumber || 0));
+              // 调试信息 - 已隐藏
       
       // 转换导入数据格式
       const bugsToCreate = data.map((item, index) => {
         const newSequenceNumber = maxSequenceNumber + index + 1;
-        console.log(`第${index + 1}条数据编号:`, newSequenceNumber, '标题:', item.title || item['Bug标题']); // 调试信息
+                  // 调试信息 - 已隐藏
         
         // 处理负责人字段
         const assigneeName = item.assigneeName || item['负责人'] || '';
@@ -334,35 +517,51 @@ const BugManagementPage: React.FC = () => {
         // 处理标签字段
         const tags = item.tags || item['标签'] || '';
         
-        return {
-          title: item.title || item['Bug标题'],
-          description: item.description || item['Bug描述'],
-          reproductionSteps: item.reproductionSteps || item['复现步骤'],
-          expectedResult: item.expectedResult || item['预期结果'],
-          actualResult: item.actualResult || item['实际结果'],
-          priority: item.priority || item['优先级'],
-          severity: item.severity || item['严重程度'],
-          type: item.type || item['类型'],
-          responsibility: item.responsibility || item['责任归属'],
-          status: item.status || item['状态'] || '新建', // 设置默认状态
-          assignee: assigneeId, // 设置负责人ID
-          assigneeName: assigneeName, // 设置负责人姓名
+        // 验证必要字段
+        const title = item.title || item['Bug标题'];
+        if (!title) {
+          throw new Error(`第${index + 1}行数据缺少标题字段`);
+        }
+        
+        // 确保所有必填字段都有值，符合后端模型要求
+        const bugData = {
+          title: title,
+          description: item.description || item['Bug描述'] || '批量导入的Bug',
+          reproductionSteps: item.reproductionSteps || item['复现步骤'] || '批量导入',
+          expectedResult: item.expectedResult || item['预期结果'] || '',
+          actualResult: item.actualResult || item['实际结果'] || '批量导入',
+          priority: item.priority || item['优先级'] || 'P3',
+          severity: item.severity || item['严重程度'] || 'C',
+          type: item.type || item['类型'] || '电气性能',
+          responsibility: item.responsibility || item['责任归属'] || '软件',
+          status: item.status || item['状态'] || '新建',
+          assignee: assigneeId || null, // 确保为null而不是空字符串
+          assigneeName: assigneeName,
           categoryLevel3: item.categoryLevel3 || item['三级类目'] || '默认类目',
           model: item.model || item['型号'] || '默认型号',
           sku: item.sku || item['SKU'] || '默认SKU',
           hardwareVersion: item.hardwareVersion || item['硬件版本'] || '默认硬件版本',
           softwareVersion: item.softwareVersion || item['软件版本'] || '默认软件版本',
-          tags: tags, // 设置标签字符串
-          sequenceNumber: newSequenceNumber, // 从最大编号+1开始递增
+          tags: tags,
+          sequenceNumber: newSequenceNumber,
         };
+        
+        // 调试信息 - 已隐藏
+        return bugData;
       });
 
-      console.log('准备创建的Bug数据:', bugsToCreate.map(bug => ({ title: bug.title, sequenceNumber: bug.sequenceNumber }))); // 调试信息
+              // 调试信息 - 已隐藏
 
       // 批量创建Bug
       for (const bug of bugsToCreate) {
-        console.log('创建Bug:', bug.title, '编号:', bug.sequenceNumber); // 调试信息
-        await bugStore.createBug(bug);
+                  // 调试信息 - 已隐藏
+        try {
+          await bugStore.createBug(bug);
+          // 调试信息 - 已隐藏
+        } catch (error) {
+          console.error('❌ Bug创建失败:', bug.title, error);
+          throw new Error(`创建Bug "${bug.title}" 失败: ${error.message}`);
+        }
       }
       
       // 记录批量导入Bug日志
@@ -374,7 +573,12 @@ const BugManagementPage: React.FC = () => {
       bugStore.fetchBugs();
     } catch (error) {
       console.error('批量导入失败:', error); // 调试信息
-      message.error('批量导入失败，请检查数据格式');
+      console.error('错误详情:', {
+        message: error instanceof Error ? error.message : '未知错误',
+        stack: error instanceof Error ? error.stack : undefined,
+        data: data
+      });
+      message.error(`批量导入失败：${error instanceof Error ? error.message : '请检查数据格式'}`);
     }
   };
 
@@ -398,8 +602,7 @@ const BugManagementPage: React.FC = () => {
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       );
 
-      console.log('导出Bug数量:', sortedBugsToExport.length); // 调试信息
-      console.log('导出Bug顺序:', sortedBugsToExport.map(bug => ({ id: bug.id, title: bug.title, createdAt: bug.createdAt }))); // 调试信息
+              // 调试信息 - 已隐藏
 
       // 转换数据格式为Excel
       const excelData: Record<string, string>[] = sortedBugsToExport.map((bug, index) => ({
@@ -597,7 +800,12 @@ const BugManagementPage: React.FC = () => {
       </Row>
 
       <Space style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>新建Bug</Button>
+        {hasPermission(
+          (currentUser?.permissions || []) as Permission[],
+          'bug:create'
+        ) && (
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>新建Bug</Button>
+        )}
         <Button icon={<ImportOutlined />} onClick={() => setImportModalVisible(true)}>批量导入</Button>
         <Dropdown
           menu={{
@@ -797,6 +1005,30 @@ const BugManagementPage: React.FC = () => {
         width={900}
         style={{ top: 20 }}
       >
+        {/* 权限提示信息 */}
+        {bugStore.selectedBug && (
+          <div style={{ 
+            marginBottom: 16, 
+            padding: 12, 
+            backgroundColor: canEditBugCoreFields(bugStore.selectedBug) ? '#f6ffed' : '#fff7e6',
+            border: `1px solid ${canEditBugCoreFields(bugStore.selectedBug) ? '#b7eb8f' : '#ffd591'}`,
+            borderRadius: 6,
+            fontSize: 14
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: 4 }}>
+              {canEditBugCoreFields(bugStore.selectedBug) ? '✅ 完全编辑权限' : '⚠️ 受限编辑权限'}
+            </div>
+            <div style={{ color: '#666' }}>
+              {canEditBugCoreFields(bugStore.selectedBug) 
+                ? '您可以编辑Bug的所有字段，包括核心字段（标题、描述、复现步骤、预期结果、实际结果）'
+                : '您可以编辑Bug的状态、指派、优先级等字段，但核心字段（标题、描述、复现步骤、预期结果、实际结果）需要管理员或创建者权限'
+              }
+            </div>
+            
+            {/* 调试信息 - 已隐藏 */}
+          </div>
+        )}
+        
         <Form form={editForm} layout="vertical">
           <Form.Item name="title" label="Bug标题" rules={[{ required: true, message: '请输入标题' }]}> 
             <Input disabled={!canEditBugCoreFields(bugStore.selectedBug)} />

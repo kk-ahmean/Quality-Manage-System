@@ -12,6 +12,7 @@ import { Line } from '@ant-design/plots'
 import { useBugStore } from '../stores/bugStore'
 import { useTaskStore } from '../stores/taskStore'
 import { useUserStore } from '../stores/userStore'
+import PermissionDebug from '../components/common/PermissionDebug'
 
 const { Title } = Typography
 const { Option } = Select
@@ -59,7 +60,7 @@ const DashboardPage: React.FC = () => {
     const bugsToUse = bugs.length > 0 ? bugs : currentBugs
     
     if (!bugsToUse || bugsToUse.length === 0) {
-      console.log('Bug统计数据: 无Bug数据')
+      // 调试信息 - 已隐藏
       return {
         total: 0,
         resolved: 0,
@@ -81,15 +82,7 @@ const DashboardPage: React.FC = () => {
     const unresolved = total - resolved
     const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0
     
-    console.log('Bug统计数据计算:', {
-      total,
-      resolved,
-      inProgress,
-      unresolved,
-      resolutionRate,
-      bugsStatus: filteredBugs.map(b => b.status),
-      categoryFilter: bugCategoryLevel3
-    })
+    // 调试信息 - 已隐藏
     
     return { total, resolved, inProgress, unresolved, resolutionRate }
   }, [bugs, bugCategoryLevel3])
@@ -123,7 +116,7 @@ const DashboardPage: React.FC = () => {
     const tasksToUse = tasks.length > 0 ? tasks : currentTasks
     
     if (!tasksToUse || tasksToUse.length === 0) {
-      console.log('任务统计数据: 无任务数据')
+      // 调试信息 - 已隐藏
       return {
         total: 0,
         completed: 0,
@@ -145,15 +138,7 @@ const DashboardPage: React.FC = () => {
     const todo = filteredTasks.filter(task => task.status === 'todo').length
     const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0
     
-    console.log('任务统计数据计算:', {
-      total,
-      completed,
-      inProgress,
-      todo,
-      completionRate,
-      tasksStatus: filteredTasks.map(t => t.status),
-      categoryFilter: taskCategoryLevel3
-    })
+    // 调试信息 - 已隐藏
     
     return { total, completed, inProgress, todo, completionRate }
   }, [tasks, taskCategoryLevel3])
@@ -165,7 +150,7 @@ const DashboardPage: React.FC = () => {
     const bugsToUse = bugs.length > 0 ? bugs : currentBugs
     
     if (!bugsToUse || bugsToUse.length === 0) {
-      console.log('Bug分布数据: 无Bug数据')
+      // 调试信息 - 已隐藏
       return []
     }
     
@@ -181,37 +166,32 @@ const DashboardPage: React.FC = () => {
         const statusMap: Record<string, number> = {}
         filteredBugs.forEach(bug => { statusMap[bug.status] = (statusMap[bug.status] || 0) + 1 })
         data = Object.entries(statusMap).map(([type, value]) => ({ type, value }))
-        console.log('Bug状态分布:', statusMap)
+        // 调试信息 - 已隐藏
         break
       case 'type':
         const typeMap: Record<string, number> = {}
         filteredBugs.forEach(bug => { typeMap[bug.type] = (typeMap[bug.type] || 0) + 1 })
         data = Object.entries(typeMap).map(([type, value]) => ({ type, value }))
-        console.log('Bug类型分布:', typeMap)
+        // 调试信息 - 已隐藏
         break
       case 'responsibility':
         const responsibilityMap: Record<string, number> = {}
         filteredBugs.forEach(bug => { responsibilityMap[bug.responsibility] = (responsibilityMap[bug.responsibility] || 0) + 1 })
         data = Object.entries(responsibilityMap).map(([type, value]) => ({ type, value }))
-        console.log('Bug责任归属分布:', responsibilityMap)
+        // 调试信息 - 已隐藏
         break
       case 'priority':
         const priorityMap: Record<string, number> = {}
         filteredBugs.forEach(bug => { priorityMap[bug.priority] = (priorityMap[bug.priority] || 0) + 1 })
         data = Object.entries(priorityMap).map(([type, value]) => ({ type, value }))
-        console.log('Bug优先级分布:', priorityMap)
+        // 调试信息 - 已隐藏
         break
       default:
         break
     }
     
     const result = data.sort((a, b) => b.value - a.value)
-    console.log('Bug分布数据:', { 
-      type: bugDistributionType, 
-      data: result, 
-      bugsCount: filteredBugs.length,
-      categoryFilter: bugCategoryLevel3
-    })
+    // 调试信息 - 已隐藏
     return result
   }, [bugs, bugDistributionType, bugCategoryLevel3])
 
@@ -276,7 +256,7 @@ const DashboardPage: React.FC = () => {
           // 兜底处理：如果不是字符串，优先取常见字段
           if (typeof name !== 'string') {
             if (name && typeof name === 'object') {
-              name = name.assigneeName || name.name || name.realName || name.nickName || name.username || name.id || name._id || JSON.stringify(name);
+              name = name.assigneeName || name.name || name.realName || name.nickName || name.name || name.id || name._id || JSON.stringify(name);
             } else {
               name = String(name);
             }
@@ -290,12 +270,8 @@ const DashboardPage: React.FC = () => {
     }
     
     const result = data.sort((a, b) => b.value - a.value)
-    console.log('任务分布数据:', { 
-      type: taskDistributionType, 
-      data: result, 
-      tasksCount: filteredTasks.length,
-      categoryFilter: taskCategoryLevel3
-    })
+    // 调试信息 - 已隐藏
+    return result
     return result
   }, [tasks, taskDistributionType, taskCategoryLevel3])
 
@@ -335,14 +311,13 @@ const DashboardPage: React.FC = () => {
     if (!type) return '未分配';
     if (typeof type === 'string') return type;
     if (typeof type === 'object') {
-      // 控制台输出异常对象，便于排查
-      console.log('Assignee标签异常对象:', type);
+      // 调试信息 - 已隐藏
       // 优先取常见姓名字段
       if (typeof type.assigneeName === 'string' && type.assigneeName) return type.assigneeName;
       if (typeof type.name === 'string' && type.name) return type.name;
       if (typeof type.realName === 'string' && type.realName) return type.realName;
       if (typeof type.nickName === 'string' && type.nickName) return type.nickName;
-      if (typeof type.username === 'string' && type.username) return type.username;
+      if (typeof type.name === 'string' && type.name) return type.name;
       // 兼容 id 显示
       if (typeof type.id === 'string' && type.id) return type.id;
       if (typeof type._id === 'string' && type._id) return type._id;
@@ -359,7 +334,7 @@ const DashboardPage: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        console.log('开始加载数据...')
+        // 调试信息 - 已隐藏
         await Promise.all([
           fetchBugs({}, 1, 1000), // 获取所有Bug数据，不分页
           fetchBugStats(),
@@ -371,14 +346,7 @@ const DashboardPage: React.FC = () => {
         setTimeout(() => {
           const currentBugs = useBugStore.getState().bugs
           const currentTasks = useTaskStore.getState().tasks
-          console.log('数据加载完成:', {
-            bugsCount: currentBugs.length,
-            tasksCount: currentTasks.length,
-            bugStats,
-            taskStats,
-            bugs: currentBugs.slice(0, 3), // 显示前3个Bug用于调试
-            tasks: currentTasks.slice(0, 3) // 显示前3个任务用于调试
-          })
+          // 调试信息 - 已隐藏
         }, 500) // 增加等待时间
       } catch (error) {
         console.error('数据加载失败:', error)
@@ -891,6 +859,8 @@ const DashboardPage: React.FC = () => {
           </Card>
         </Col>
       </Row>
+
+      {/* 权限调试组件 - 已隐藏 */}
     </div>
   )
 }

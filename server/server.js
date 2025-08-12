@@ -13,6 +13,10 @@ import bugRoutes from './routes/bugs.js';
 import userRoutes from './routes/users.js';
 import projectRoutes from './routes/projects.js';
 import taskRoutes from './routes/tasks.js';
+import logRoutes from './routes/logs.js';
+
+// 日志中间件导入
+import { activityLogger } from './middleware/activityLogger.js';
 
 // 加载环境变量
 dotenv.config({ path: './config.env' });
@@ -30,7 +34,6 @@ const memoryDB = {
   users: [
     {
       _id: '1',
-      username: 'admin',
       name: '系统管理员',
       email: 'admin@example.com',
       password: '$2a$12$LjEqM0qU/eAzywircpEN4.pQblrnw3udHWihOVIUZPCaxHzroXxuC', // 123456
@@ -42,7 +45,6 @@ const memoryDB = {
     },
     {
       _id: '2',
-      username: 'developer',
       name: '开发工程师',
       email: 'developer@example.com',
       password: '$2a$12$LjEqM0qU/eAzywircpEN4.pQblrnw3udHWihOVIUZPCaxHzroXxuC', // 123456
@@ -54,7 +56,6 @@ const memoryDB = {
     },
     {
       _id: '3',
-      username: 'tester',
       name: '测试工程师',
       email: 'tester@example.com',
       password: '$2a$12$LjEqM0qU/eAzywircpEN4.pQblrnw3udHWihOVIUZPCaxHzroXxuC', // 123456
@@ -73,7 +74,23 @@ const memoryDB = {
 };
 
 // 全局变量，用于在内存数据库模式下存储数据
-global.memoryDB = memoryDB;
+// 只有在使用内存数据库模式时才设置
+if (process.env.USE_MEMORY_DB === 'true' || !process.env.MONGODB_URI) {
+  global.memoryDB = memoryDB;
+  
+  // 验证默认用户密码哈希
+  const bcrypt = await import('bcryptjs');
+  const testPassword = '123456';
+  const testHash = await bcrypt.default.hash(testPassword, 12);
+  console.log('🔐 默认密码验证:', {
+    testPassword,
+    testHash: testHash.substring(0, 20) + '...',
+    defaultHash: memoryDB.users[0].password.substring(0, 20) + '...',
+    isMatch: await bcrypt.default.compare(testPassword, memoryDB.users[0].password)
+  });
+} else {
+  global.memoryDB = null;
+}
 
 // 安全中间件
 app.use(helmet());
@@ -90,7 +107,14 @@ app.use(morgan('combined'));
 
 // CORS配置
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'],
+  origin: [
+    'http://localhost:3000', 
+    'http://localhost:3001', 
+    'http://127.0.0.1:3000', 
+    'http://127.0.0.1:3001',
+    'http://192.168.53.20:3000',
+    'http://192.168.53.20:3001'
+  ],
   credentials: true
 }));
 
@@ -104,12 +128,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// 活动日志中间件（必须在路由之前添加）
+app.use(activityLogger);
+
 // 路由
 app.use('/api/auth', authRoutes);
 app.use('/api/bugs', bugRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/logs', logRoutes);
 
 // 健康检查端点
 app.get('/api/health', (req, res) => {
@@ -142,19 +170,35 @@ app.use((error, req, res, next) => {
 // 启动服务器
 const startServer = async () => {
   try {
+    // 调试信息
+    console.log('🔍 环境变量检查:');
+    console.log('  MONGODB_URI:', process.env.MONGODB_URI ? '已配置' : '未配置');
+    console.log('  USE_MEMORY_DB:', process.env.USE_MEMORY_DB);
+    
     // 检查MongoDB连接（如果配置了的话）
-    if (process.env.MONGODB_URI && !process.env.USE_MEMORY_DB) {
+    if (process.env.MONGODB_URI && process.env.USE_MEMORY_DB !== 'true') {
+      console.log('🔗 尝试连接MongoDB...');
       await mongoose.connect(process.env.MONGODB_URI);
       console.log('✅ MongoDB连接成功');
+      // 清除内存数据库，强制使用MongoDB
+      global.memoryDB = null;
     } else {
       console.log('✅ 使用内存数据库模式');
+      if (!process.env.MONGODB_URI) {
+        console.log('  原因: MONGODB_URI 未配置');
+      }
+      if (process.env.USE_MEMORY_DB === 'true') {
+        console.log('  原因: USE_MEMORY_DB 设置为 true');
+      }
     }
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 服务器运行在端口 ${PORT}`);
       console.log(`📡 API地址: http://localhost:${PORT}/api`);
       console.log(`🔧 环境: ${process.env.NODE_ENV || 'development'}`);
-      console.log('⚠️  注意：服务器运行在内存数据库模式下，数据不会持久化');
+      if (!process.env.MONGODB_URI || process.env.USE_MEMORY_DB === 'true') {
+        console.log('⚠️  注意：服务器运行在内存数据库模式下，数据不会持久化');
+      }
       console.log('📝 测试账户：');
       console.log('   - admin@example.com / 123456 (管理员)');
       console.log('   - developer@example.com / 123456 (开发工程师)');

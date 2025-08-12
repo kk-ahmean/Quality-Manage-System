@@ -6,6 +6,11 @@ const userActivityLogSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  userName: {
+    type: String,
+    required: true,
+    trim: true
+  },
   action: {
     type: String,
     required: true,
@@ -133,7 +138,7 @@ userActivityLogSchema.statics.getSystemActivityStats = async function(days = 7) 
 };
 
 // 静态方法：清理旧日志
-userActivityLogSchema.statics.cleanOldLogs = async function(daysToKeep = 90) {
+userActivityLogSchema.statics.cleanOldLogs = async function(daysToKeep = 15) {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
@@ -149,6 +154,7 @@ userActivityLogSchema.methods.formatLog = function() {
   return {
     id: this._id,
     userId: this.userId,
+    userName: this.userName,
     action: this.action,
     description: this.description,
     ipAddress: this.ipAddress,

@@ -1,6 +1,7 @@
 import express from 'express';
 import Project from '../models/Project.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireCreatorOrAdmin } from '../middleware/auth.js';
+import mongoose from 'mongoose'; // Added missing import for mongoose
 
 const router = express.Router();
 
@@ -35,6 +36,8 @@ router.get('/', authMiddleware, async (req, res) => {
       if (search) {
         projects = projects.filter(project => 
           project.name.toLowerCase().includes(search.toLowerCase()) ||
+          (project.sku && project.sku.toLowerCase().includes(search.toLowerCase())) ||
+          (project.supplier && project.supplier.toLowerCase().includes(search.toLowerCase())) ||
           (project.description && project.description.toLowerCase().includes(search.toLowerCase()))
         );
       }
@@ -112,7 +115,12 @@ router.get('/', authMiddleware, async (req, res) => {
       
       // 搜索功能
       if (search) {
-        query.$text = { $search: search };
+        query.$or = [
+          { name: { $regex: search, $options: 'i' } },
+          { sku: { $regex: search, $options: 'i' } },
+          { supplier: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } }
+        ];
       }
 
       // 分页
@@ -128,14 +136,29 @@ router.get('/', authMiddleware, async (req, res) => {
         .skip(skip)
         .limit(limitNum)
         .populate('manager', 'name email')
-        .populate('members.user', 'name email role');
+        .populate('creator', 'name email');
 
       const total = await Project.countDocuments(query);
+
+      // 添加序号和字段映射
+      const projectsWithFullData = projects.map((project, index) => ({
+        ...project.toObject(),
+        sequenceNumber: skip + index + 1, // 添加序号，基于全局位置
+        model: project.name, // 将name映射到model
+        sku: project.sku || project.name, // 使用sku或name作为默认值
+        categoryLevel3: project.categoryLevel3 || '-', // 添加三级类目字段
+        supplier: project.supplier || '-', // 确保供应商字段有默认值
+        productImages: project.productImages || [], // 确保产品图片字段有默认值
+        hardwareSolution: project.hardwareSolution || '-', // 确保硬件方案字段有默认值
+        remarks: project.remarks || '-', // 确保备注字段有默认值
+        versions: project.versions || [], // 确保版本信息字段有默认值
+        stages: project.stages || [] // 确保样机阶段字段有默认值
+      }));
 
       res.json({
         success: true,
         data: {
-          projects,
+          projects: projectsWithFullData,
           pagination: {
             page: parseInt(page),
             pageSize: limitNum,
@@ -157,9 +180,14 @@ router.get('/', authMiddleware, async (req, res) => {
 // 创建新项目
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    console.log('收到项目创建请求:', req.body); // 调试信息
-    console.log('供应商字段:', req.body.supplier); // 调试信息
-    
+    // 调试：检查接收到的原始数据
+    console.log('=== 项目创建调试信息 ===');
+    console.log('请求体类型:', typeof req.body);
+    console.log('productImages类型:', typeof req.body.productImages);
+    console.log('productImages是否为数组:', Array.isArray(req.body.productImages));
+    console.log('productImages内容:', JSON.stringify(req.body.productImages, null, 2));
+    console.log('=== 调试信息结束 ===');
+
     const {
       name,
       model, // 添加model字段支持
@@ -177,7 +205,8 @@ router.post('/', authMiddleware, async (req, res) => {
       supplier, // 确保提取供应商字段
       interfaceFeatures, // 确保提取接口特性字段
       hardwareSolution, // 确保提取硬件方案字段
-      remarks // 确保提取备注字段
+      remarks, // 确保提取备注字段
+      productImages // 添加产品图片字段
     } = req.body;
 
     // 使用model或name作为项目名称
@@ -211,7 +240,7 @@ router.post('/', authMiddleware, async (req, res) => {
         manager: manager || req.user.id,
         creator: req.user.id,
         creatorName: req.user.name || '系统管理员',
-        productImages: req.body.productImages || [],
+        productImages: processedProductImages, // 使用处理后的图片数据
         members,
         versions: req.body.versions || [],
         stages: req.body.stages || [],
@@ -234,37 +263,75 @@ router.post('/', authMiddleware, async (req, res) => {
         data: projectResponse
       });
     } else {
-      // MongoDB模式
-      const newProject = new Project({
+      // MongoDB模式 - 采用与内存模式相同的处理方式
+      console.log('=== MongoDB模式项目创建 ===');
+      
+      // 处理产品图片数据，确保格式正确 - 与内存模式保持一致
+      let processedProductImages = [];
+      console.log('接收到的原始productImages:', productImages);
+      console.log('productImages类型:', typeof productImages);
+      console.log('productImages是否为数组:', Array.isArray(productImages));
+      
+      if (productImages && Array.isArray(productImages) && productImages.length > 0) {
+        // 确保包含MongoDB模型中定义的所有字段，与内存模式保持一致
+        processedProductImages = productImages.map((img) => ({
+          name: img.name || '产品图片',
+          url: img.url || '',
+          size: img.size || 0,
+          type: img.type || 'image/jpeg',
+          uploadedBy: req.user.name || '系统管理员',
+          uploadedAt: new Date()
+        }));
+      }
+
+      console.log('处理后的图片数据:', processedProductImages); // 调试信息
+
+      // 处理members字段，确保格式正确 - 与内存模式保持一致
+      const processedMembers = members.map(member => ({
+        userId: new mongoose.Types.ObjectId(member.userId), // 转换为ObjectId
+        name: member.name || '未知用户', // 使用name字段
+        role: member.role || 'developer',
+        joinDate: new Date()
+      }));
+
+      // 创建项目对象 - 与内存模式保持一致的结构
+      const projectData = {
         name: projectName,
         model: projectName,
         sku: req.body.sku || projectName,
-        categoryLevel3: categoryLevel3,
-        description,
-        level,
-        trade,
-        status,
-        manager: manager || req.user.id,
-        creator: req.user.id,
-        startDate,
-        endDate,
-        budget,
-        tags,
-        members,
-        supplier: req.body.supplier,
-        interfaceFeatures: req.body.interfaceFeatures,
-        hardwareSolution: req.body.hardwareSolution,
-        remarks: req.body.remarks,
-        productImages: req.body.productImages || [],
+        categoryLevel3: categoryLevel3 || '默认类目',
+        description: description || '',
+        level: level || 'L2',
+        trade: trade || '内贸',
+        status: status || '研发设计',
+        manager: manager || (req.user._id || req.user.id),
+        creator: req.user._id || req.user.id,
+        startDate: startDate || new Date(),
+        endDate: endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        budget: budget || 0,
+        tags: tags || [],
+        members: processedMembers,
+        supplier: req.body.supplier || '',
+        interfaceFeatures: req.body.interfaceFeatures || '',
+        hardwareSolution: req.body.hardwareSolution || '',
+        remarks: req.body.remarks || '',
+        productImages: processedProductImages, // 使用处理后的图片数据
         versions: req.body.versions || [],
         stages: req.body.stages || [],
         createdAt: new Date(),
         updatedAt: new Date()
-      });
+      };
 
+      console.log('MongoDB项目数据:', projectData); // 调试信息
+
+      const newProject = new Project(projectData);
       const savedProject = await newProject.save();
+      
+      // 填充关联数据
       await savedProject.populate('manager', 'name email');
-      await savedProject.populate('members.user', 'name email role');
+      await savedProject.populate('creator', 'name email');
+
+      console.log('MongoDB项目创建成功:', savedProject._id); // 调试信息
 
       res.status(201).json({
         success: true,
@@ -273,11 +340,16 @@ router.post('/', authMiddleware, async (req, res) => {
     }
   } catch (error) {
     console.error('创建项目失败:', error);
-    console.error('错误详情:', error.message); // 调试信息
+    console.error('错误详情:', {
+      errorMessage: error.message,
+      errorStack: error.stack,
+      requestBody: req.body
+    });
     res.status(500).json({
       success: false,
       message: '创建项目失败',
-      error: error.message
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -328,7 +400,6 @@ router.get('/:id', authMiddleware, async (req, res) => {
       // MongoDB模式
       const project = await Project.findById(req.params.id)
         .populate('manager', 'name email')
-        .populate('members.user', 'name email role')
         .populate('creator', 'name email');
 
       if (!project) {
@@ -338,9 +409,24 @@ router.get('/:id', authMiddleware, async (req, res) => {
         });
       }
 
+      // 确保返回完整的项目数据
+      const projectWithFullData = {
+        ...project.toObject(),
+        model: project.name, // 将name映射到model
+        sku: project.sku || project.name, // 使用sku或name作为默认值
+        categoryLevel3: project.categoryLevel3 || '-', // 添加三级类目字段
+        supplier: project.supplier || '-', // 确保供应商字段有默认值
+        productImages: project.productImages || [], // 确保产品图片字段有默认值
+        hardwareSolution: project.hardwareSolution || '-', // 确保硬件方案字段有默认值
+        remarks: project.remarks || '-', // 确保备注字段有默认值
+        versions: project.versions || [], // 确保版本信息字段有默认值
+        stages: project.stages || [], // 确保样机阶段字段有默认值
+        interfaceFeatures: project.interfaceFeatures || '-' // 确保接口特性字段有默认值
+      };
+
       res.json({
         success: true,
-        data: project
+        data: projectWithFullData
       });
     }
   } catch (error) {
@@ -411,32 +497,77 @@ router.put('/:id', authMiddleware, async (req, res) => {
         data: projectWithFullData
       });
     } else {
-      // MongoDB模式
-      const {
-        name,
-        description,
-        level,
-        trade,
-        status,
-        manager,
-        startDate,
-        endDate,
-        budget,
-        tags,
-        members
-      } = req.body;
+      // MongoDB模式 - 采用与内存模式相同的处理方式
+      console.log('=== MongoDB模式项目更新 ===');
+      console.log('更新请求体:', req.body);
+      
+      // 处理产品图片数据，确保格式正确 - 与内存模式保持一致
+      let processedProductImages = [];
+      if (req.body.productImages && Array.isArray(req.body.productImages) && req.body.productImages.length > 0) {
+        processedProductImages = req.body.productImages.map((img) => ({
+          name: img.name || '产品图片',
+          url: img.url || '',
+          size: img.size || 0,
+          type: img.type || 'image/jpeg',
+          uploadedBy: req.user.name || '系统管理员',
+          uploadedAt: new Date()
+        }));
+      }
 
+      // 处理members字段，确保格式正确 - 与内存模式保持一致
+      let processedMembers = [];
+      if (req.body.members && Array.isArray(req.body.members)) {
+        processedMembers = req.body.members.map(member => ({
+          userId: new mongoose.Types.ObjectId(member.userId),
+          name: member.name || '未知用户', // 使用name字段
+          role: member.role || 'developer',
+          joinDate: new Date()
+        }));
+      }
+
+      // 构建更新数据 - 与内存模式保持一致的结构
       const updateData = {
         ...req.body,
         updatedAt: new Date()
       };
 
+      // 处理字段映射
+      if (updateData.model) {
+        updateData.name = updateData.model; // 将model映射到name
+      }
+
+      // 确保必需字段有默认值
+      updateData.categoryLevel3 = updateData.categoryLevel3 || '默认类目';
+      updateData.description = updateData.description || '';
+      updateData.level = updateData.level || 'L2';
+      updateData.trade = updateData.trade || '内贸';
+      updateData.status = updateData.status || '研发设计';
+      updateData.supplier = updateData.supplier || '';
+      updateData.interfaceFeatures = updateData.interfaceFeatures || '';
+      updateData.hardwareSolution = updateData.hardwareSolution || '';
+      updateData.remarks = updateData.remarks || '';
+      updateData.budget = updateData.budget || 0;
+      updateData.tags = updateData.tags || [];
+      updateData.versions = updateData.versions || [];
+      updateData.stages = updateData.stages || [];
+
+      // 如果有处理后的图片数据，使用处理后的数据
+      if (processedProductImages.length > 0) {
+        updateData.productImages = processedProductImages;
+      }
+
+      // 如果有处理后的成员数据，使用处理后的数据
+      if (processedMembers.length > 0) {
+        updateData.members = processedMembers;
+      }
+
+      console.log('MongoDB更新数据:', updateData); // 调试信息
+
       const updatedProject = await Project.findByIdAndUpdate(
         req.params.id,
         updateData,
-        { new: true }
+        { new: true, runValidators: true }
       ).populate('manager', 'name email')
-       .populate('members.user', 'name email role')
        .populate('creator', 'name email');
 
       if (!updatedProject) {
@@ -446,6 +577,8 @@ router.put('/:id', authMiddleware, async (req, res) => {
         });
       }
 
+      console.log('MongoDB项目更新成功:', updatedProject._id); // 调试信息
+
       res.json({
         success: true,
         data: updatedProject
@@ -453,16 +586,23 @@ router.put('/:id', authMiddleware, async (req, res) => {
     }
   } catch (error) {
     console.error('更新项目失败:', error);
+    console.error('错误详情:', {
+      errorMessage: error.message,
+      errorStack: error.stack,
+      requestBody: req.body,
+      projectId: req.params.id
+    });
     res.status(500).json({
       success: false,
       message: '更新项目失败',
-      error: error.message
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
 
 // 删除项目
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', authMiddleware, requireCreatorOrAdmin('project'), async (req, res) => {
   try {
     if (global.memoryDB) {
       // 内存数据库模式

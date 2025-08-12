@@ -49,6 +49,7 @@ import { useUserStore } from '../stores/userStore'
 import { User, UserRole, UserStatus, CreateUserRequest, UpdateUserRequest, Permission } from '../types/user'
 import { logSystemActivity } from '../stores/authStore'
 import { useAuthStore } from '../stores/authStore'
+import { canShowDeleteButton, hasPermission } from '../utils/permissions'
 import dayjs from 'dayjs'
 
 
@@ -110,8 +111,16 @@ const UserManagementPage: React.FC = () => {
 
   const handleEditUser = (user: User) => {
     setEditingUser(user)
+    
+    // 调试日志
+    console.log('编辑用户数据:', {
+      user,
+      phone: user.phone,
+      department: user.department,
+      position: user.position
+    })
+    
     form.setFieldsValue({
-      username: user.username || user.name, // 显示用户名但不允许编辑
       name: user.name, // 显示姓名但不允许编辑
       email: user.email,
       phone: user.phone || '', // 确保手机号字段有值
@@ -148,12 +157,15 @@ const UserManagementPage: React.FC = () => {
         const updateData = {
           id: editingUser.id,
           email: values.email,
-          phone: values.phone,
+          phone: values.phone || '',
           role: values.role,
-          department: values.department,
-          position: values.position,
+          department: values.department || '',
+          position: values.position || '',
           status: values.status
         }
+        
+        console.log('更新用户数据:', updateData)
+        
         await updateUser(updateData)
         
         // 记录更新用户日志
@@ -163,18 +175,25 @@ const UserManagementPage: React.FC = () => {
         
         message.success('用户更新成功')
       } else {
-        // 创建用户 - 将username映射为name
+        // 创建用户 - 统一使用name字段作为用户名
+        // 准备用户数据
         const userData = {
           ...values,
-          name: values.username, // 将username映射为name
-          username: values.username // 保留username字段
-        }
+          name: values.name, // 使用name字段
+          // 移除username字段，统一使用name
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        // 记录系统日志
+        logSystemActivity(currentUser.id, 'CREATE_USER', `创建新用户: ${values.name}`)
         
         await createUser(userData)
         
         // 记录创建用户日志
         if (currentUser) {
-          logSystemActivity(currentUser.id, 'CREATE_USER', `创建新用户: ${values.username}`)
+          logSystemActivity(currentUser.id, 'CREATE_USER', `创建新用户: ${values.name}`)
         }
         
         message.success('用户创建成功')
@@ -192,6 +211,7 @@ const UserManagementPage: React.FC = () => {
     setIsModalVisible(false)
     setEditingUser(null) // 清空编辑状态
     form.resetFields()
+    console.log('用户表单已重置')
   }
 
   const handleSearch = async (values: any) => {
@@ -326,26 +346,36 @@ const UserManagementPage: React.FC = () => {
 
   const getPermissionText = (permission: Permission) => {
     const texts: Record<Permission, string> = {
+      // 用户管理权限
       'user:read': '查看用户',
       'user:create': '创建用户',
       'user:update': '更新用户',
       'user:delete': '删除用户',
+      // 团队管理权限
       'team:read': '查看团队',
       'team:create': '创建团队',
       'team:update': '更新团队',
       'team:delete': '删除团队',
+      // Bug管理权限
       'bug:read': '查看Bug',
       'bug:create': '创建Bug',
       'bug:update': '更新Bug',
       'bug:delete': '删除Bug',
+      // 任务管理权限
       'task:read': '查看任务',
       'task:create': '创建任务',
       'task:update': '更新任务',
       'task:delete': '删除任务',
+      // 项目管理权限
+      'project:read': '查看项目',
+      'project:create': '创建项目',
+      'project:update': '更新项目',
+      'project:delete': '删除项目',
+      // 系统权限
       'dashboard:read': '查看仪表盘',
       'system:settings': '系统设置'
     }
-    return texts[permission]
+    return texts[permission] || permission
   }
 
   const batchMenuItems = [
@@ -390,7 +420,7 @@ const UserManagementPage: React.FC = () => {
           <div>
             <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{record.name}</div>
             <div style={{ fontSize: '12px', color: '#666', marginBottom: '2px' }}>
-              @{record.username}
+              @{record.name}
             </div>
             <div style={{ fontSize: '11px', color: '#999' }}>
               创建于 {dayjs(record.createdAt).format('YYYY-MM-DD')}
@@ -487,7 +517,10 @@ const UserManagementPage: React.FC = () => {
               {
                 type: 'divider'
               },
-              {
+              ...(hasPermission(
+                (currentUser?.permissions || []) as Permission[],
+                'user:delete'
+              ) ? [{
                 key: 'delete',
                 label: (
                   <Popconfirm
@@ -501,9 +534,8 @@ const UserManagementPage: React.FC = () => {
                   </Popconfirm>
                 ),
                 icon: <DeleteOutlined />,
-                danger: true,
-                disabled: record.role === 'admin'
-              }
+                danger: true
+              }] : [])
             ]
           }}
           >
@@ -541,11 +573,14 @@ const UserManagementPage: React.FC = () => {
           </Col>
           <Col span={4}>
             <Select
-              placeholder="选择角色"
+              className="filter-select"
+              placeholder="请选择角色"
               value={roleFilter}
               onChange={setRoleFilter}
               allowClear
               style={{ width: '100%' }}
+              notFoundContent="暂无角色数据"
+              showSearch={false}
             >
               <Option value="admin">管理员</Option>
               <Option value="product_engineer">产品工程师</Option>
@@ -557,11 +592,14 @@ const UserManagementPage: React.FC = () => {
           </Col>
           <Col span={4}>
             <Select
-              placeholder="选择状态"
+              className="filter-select"
+              placeholder="请选择状态"
               value={statusFilter}
               onChange={setStatusFilter}
               allowClear
               style={{ width: '100%' }}
+              notFoundContent="暂无状态数据"
+              showSearch={false}
             >
               <Option value="active">启用</Option>
               <Option value="inactive">禁用</Option>
@@ -621,7 +659,7 @@ const UserManagementPage: React.FC = () => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
-                name="username"
+                name="name"
                 label="用户名"
                 rules={[
                   { required: true, message: '请输入用户名' },
@@ -663,7 +701,7 @@ const UserManagementPage: React.FC = () => {
                   { pattern: /^1[3-9]\d{9}$/, message: '请输入有效的手机号' }
                 ]}
               >
-                <Input />
+                <Input placeholder="请输入手机号" />
               </Form.Item>
             </Col>
           </Row>
@@ -786,6 +824,18 @@ const UserManagementPage: React.FC = () => {
                 </Col>
                 <Col span={12}>
                   <Checkbox value="task:delete">删除任务</Checkbox>
+                </Col>
+                <Col span={12}>
+                  <Checkbox value="project:read">查看项目</Checkbox>
+                </Col>
+                <Col span={12}>
+                  <Checkbox value="project:create">创建项目</Checkbox>
+                </Col>
+                <Col span={12}>
+                  <Checkbox value="project:update">更新项目</Checkbox>
+                </Col>
+                <Col span={12}>
+                  <Checkbox value="project:delete">删除项目</Checkbox>
                 </Col>
                 <Col span={12}>
                   <Checkbox value="dashboard:read">查看仪表盘</Checkbox>

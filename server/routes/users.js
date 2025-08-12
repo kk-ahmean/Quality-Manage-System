@@ -2,7 +2,7 @@ import express from 'express';
 import User from '../models/User.js';
 import Team from '../models/Team.js';
 import UserActivityLog from '../models/UserActivityLog.js';
-import { authMiddleware, requireRole } from '../middleware/auth.js';
+import { authMiddleware, requireRole, requireCreatorOrAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -19,9 +19,9 @@ router.get('/', authMiddleware, async (req, res) => {
       sortOrder = 'asc' // 改为升序，确保最早创建的用户排在前面
     } = req.query;
 
-    if (global.memoryDB) {
-      // 内存数据库模式
-      let users = global.memoryDB.users || [];
+      if (global.memoryDB && process.env.USE_MEMORY_DB === 'true') {
+    // 内存数据库模式
+    let users = global.memoryDB.users || [];
       
       // 过滤
       if (role) {
@@ -118,10 +118,21 @@ router.get('/', authMiddleware, async (req, res) => {
       // 获取总数
       const total = await User.countDocuments(query);
 
+      // 添加序号并统一ID格式 - 与内存数据库模式保持一致
+      const usersWithSequence = users.map((user, index) => {
+        const userObj = user.toObject();
+        return {
+          ...userObj,
+          id: userObj._id.toString(), // 确保id字段存在且为字符串
+          _id: userObj._id.toString(), // 确保_id字段也为字符串
+          sequenceNumber: skip + index + 1 // 添加序号，基于全局位置
+        };
+      });
+
       res.json({
         success: true,
         data: {
-          users: users,
+          users: usersWithSequence,
           pagination: {
             page: parseInt(page),
             pageSize: parseInt(limit),
@@ -196,12 +207,48 @@ router.get('/teams', authMiddleware, async (req, res) => {
       const skip = (parseInt(page) - 1) * parseInt(limit);
       const paginatedTeams = teams.slice(skip, skip + parseInt(limit));
       
-      // 添加序号字段
-      const teamsWithSequence = paginatedTeams.map((team, index) => ({
-        ...team,
-        id: team._id, // 确保id字段存在
-        sequenceNumber: skip + index + 1 // 添加序号，基于全局位置
-      }));
+      // 添加序号字段并关联用户信息
+      const teamsWithSequence = paginatedTeams.map((team, index) => {
+        // 查找负责人信息 - 支持多种ID格式
+        const leader = global.memoryDB.users.find(user => 
+          user._id === team.leader || 
+          user.id === team.leader || 
+          user._id === team.leader?.toString() ||
+          user.id === team.leader?.toString()
+        );
+        
+        // 查找成员信息 - 支持多种ID格式
+        const members = (team.members || []).map(member => {
+          const user = global.memoryDB.users.find(u => 
+            u._id === member.user || 
+            u.id === member.user || 
+            u._id === member.user?.toString() ||
+            u.id === member.user?.toString()
+          );
+          return {
+            ...member,
+            userInfo: user ? {
+              id: user._id || user.id,
+              name: user.name,
+              email: user.email,
+              role: user.role
+            } : null
+          };
+        });
+        
+        return {
+          ...team,
+          id: team._id, // 确保id字段存在
+          sequenceNumber: skip + index + 1, // 添加序号，基于全局位置
+          leaderInfo: leader ? {
+            id: leader._id || leader.id,
+            name: leader.name,
+            email: leader.email,
+            role: leader.role
+          } : null,
+          members: members
+        };
+      });
       
       res.json({
         success: true,
@@ -214,7 +261,7 @@ router.get('/teams', authMiddleware, async (req, res) => {
         }
       });
     } else {
-      // MongoDB模式
+      // MongoDB模式 - 采用内存数据库模式的处理方法
       const query = {};
       if (status) query.status = status;
       
@@ -230,20 +277,56 @@ router.get('/teams', authMiddleware, async (req, res) => {
       const sort = {};
       sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
+      // 获取所有用户数据，模拟内存数据库的global.memoryDB.users
+      const allUsers = await User.find({}).select('_id name email role');
+      
       const teams = await Team.find(query)
-        .populate('leader', 'name email')
-        .populate('members.user', 'name email role')
         .sort(sort)
         .skip(skip)
         .limit(parseInt(limit));
 
       const total = await Team.countDocuments(query);
 
-      // 为MongoDB模式添加序号
-      const teamsWithSequence = teams.map((team, index) => ({
-        ...team.toObject(),
-        sequenceNumber: skip + index + 1 // 添加序号，基于全局位置
-      }));
+      // 采用内存数据库模式的处理方法
+      const teamsWithSequence = teams.map((team, index) => {
+        const teamObj = team.toObject();
+        
+        // 查找负责人信息 - 采用内存数据库模式的方法
+        const leader = allUsers.find(user => 
+          user._id.toString() === teamObj.leader?.toString() || 
+          user._id.toString() === teamObj.leader
+        );
+        
+        // 查找成员信息 - 采用内存数据库模式的方法
+        const members = (teamObj.members || []).map(member => {
+          const user = allUsers.find(u => 
+            u._id.toString() === member.user?.toString() || 
+            u._id.toString() === member.user
+          );
+          return {
+            ...member,
+            userInfo: user ? {
+              id: user._id.toString(),
+              name: user.name,
+              email: user.email,
+              role: user.role
+            } : null
+          };
+        });
+        
+        return {
+          ...teamObj,
+          id: teamObj._id.toString(), // 确保id字段存在且为字符串
+          sequenceNumber: skip + index + 1, // 添加序号，基于全局位置
+          leaderInfo: leader ? {
+            id: leader._id.toString(),
+            name: leader.name,
+            email: leader.email,
+            role: leader.role
+          } : null,
+          members: members
+        };
+      });
 
       res.json({
         success: true,
@@ -267,8 +350,28 @@ router.get('/teams', authMiddleware, async (req, res) => {
 });
 
 // 创建新团队
-router.post('/teams', authMiddleware, requireRole(['admin', 'product_engineer']), async (req, res) => {
+router.post('/teams', authMiddleware, async (req, res) => {
   try {
+    // 检查用户是否有创建团队的权限
+    const currentUser = req.user;
+    if (!currentUser) {
+      return res.status(401).json({
+        success: false,
+        message: '用户未登录'
+      });
+    }
+
+    // 检查权限：管理员或有team:create权限的用户可以创建团队
+    const hasPermission = currentUser.role === 'admin' || 
+                         currentUser.permissions?.includes('team:create');
+    
+    if (!hasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: '您没有创建团队的权限'
+      });
+    }
+
     const {
       name,
       description,
@@ -317,6 +420,7 @@ router.post('/teams', authMiddleware, requireRole(['admin', 'product_engineer'])
         tags,
         settings,
         members: members,
+        creator: currentUser.id || currentUser._id, // 添加创建者字段
         status: 'active',
         createdAt: new Date(),
         updatedAt: new Date()
@@ -363,7 +467,8 @@ router.post('/teams', authMiddleware, requireRole(['admin', 'product_engineer'])
         department,
         tags,
         settings,
-        members: members
+        members: members,
+        creator: currentUser.id || currentUser._id // 添加创建者字段
       });
 
       await newTeam.save();
@@ -385,8 +490,17 @@ router.post('/teams', authMiddleware, requireRole(['admin', 'product_engineer'])
 });
 
 // 更新团队
-router.put('/teams/:id', authMiddleware, requireRole(['admin', 'product_engineer']), async (req, res) => {
+router.put('/teams/:id', authMiddleware, async (req, res) => {
   try {
+    // 检查用户是否有编辑团队的权限
+    const currentUser = req.user;
+    if (!currentUser) {
+      return res.status(401).json({
+        success: false,
+        message: '用户未登录'
+      });
+    }
+
     const { name, description, leader, department, tags, settings, members } = req.body;
     
     if (global.memoryDB) {
@@ -401,6 +515,19 @@ router.put('/teams/:id', authMiddleware, requireRole(['admin', 'product_engineer
       }
 
       const team = global.memoryDB.teams[teamIndex];
+
+      // 检查权限：管理员、有team:update权限的用户或团队创建者可以编辑团队
+      const hasPermission = currentUser.role === 'admin' || 
+                           currentUser.permissions?.includes('team:update') ||
+                           team.creator === currentUser.id ||
+                           team.creator === currentUser._id;
+      
+      if (!hasPermission) {
+        return res.status(403).json({
+          success: false,
+          message: '您没有编辑此团队的权限'
+        });
+      }
 
       // 更新团队信息
       if (name) team.name = name;
@@ -441,6 +568,18 @@ router.put('/teams/:id', authMiddleware, requireRole(['admin', 'product_engineer
         });
       }
 
+      // 检查权限：管理员、有team:update权限的用户或团队创建者可以编辑团队
+      const hasPermission = currentUser.role === 'admin' || 
+                           currentUser.permissions?.includes('team:update') ||
+                           team.creator.toString() === (currentUser.id || currentUser._id).toString();
+      
+      if (!hasPermission) {
+        return res.status(403).json({
+          success: false,
+          message: '您没有编辑此团队的权限'
+        });
+      }
+
       // 更新团队信息
       if (name) team.name = name;
       if (description !== undefined) team.description = description;
@@ -477,7 +616,7 @@ router.put('/teams/:id', authMiddleware, requireRole(['admin', 'product_engineer
 });
 
 // 删除团队
-router.delete('/teams/:id', authMiddleware, requireRole(['admin', 'product_engineer']), async (req, res) => {
+router.delete('/teams/:id', authMiddleware, requireCreatorOrAdmin('team'), async (req, res) => {
   try {
     if (global.memoryDB) {
       // 内存数据库模式
@@ -551,6 +690,29 @@ router.get('/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// 根据角色获取默认权限
+const getDefaultPermissionsByRole = (role) => {
+  const adminPermissions = [
+    'user:read', 'user:create', 'user:update', 'user:delete',
+    'team:read', 'team:create', 'team:update', 'team:delete',
+    'bug:read', 'bug:create', 'bug:update', 'bug:delete',
+    'task:read', 'task:create', 'task:update', 'task:delete',
+    'project:read', 'project:create', 'project:update', 'project:delete',
+    'dashboard:read', 'system:settings'
+  ];
+
+  const defaultPermissions = [
+    'user:read',
+    'team:read', 'team:create', 'team:update', 'team:delete',
+    'bug:read', 'bug:create', 'bug:update',
+    'task:read', 'task:create', 'task:update', 'task:delete',
+    'project:read', 'project:create', 'project:update', 'project:delete',
+    'dashboard:read', 'system:settings'
+  ];
+
+  return role === 'admin' ? adminPermissions : defaultPermissions;
+};
+
 // 创建用户（仅管理员）
 router.post('/', authMiddleware, requireRole(['admin']), async (req, res) => {
   try {
@@ -574,8 +736,14 @@ router.post('/', authMiddleware, requireRole(['admin']), async (req, res) => {
         });
       }
 
+      // 创建新用户，默认密码为123456
       const bcrypt = await import('bcryptjs');
       const hashedPassword = await bcrypt.default.hash('123456', 12);
+      console.log('🔐 内存数据库模式创建用户，手动哈希密码');
+
+      // 根据角色设置默认权限
+      const defaultPermissions = getDefaultPermissionsByRole(role);
+      const finalPermissions = permissions || defaultPermissions;
 
       const newUser = {
         _id: Date.now().toString(),
@@ -586,13 +754,19 @@ router.post('/', authMiddleware, requireRole(['admin']), async (req, res) => {
         password: hashedPassword,
         role: role || 'developer',
         department: department || '',
-        permissions: permissions || ['read', 'write'],
+        permissions: finalPermissions,
         status: 'active',
         createdAt: new Date(),
         updatedAt: new Date()
       };
 
       global.memoryDB.users.push(newUser);
+      console.log('✅ 内存数据库用户创建成功:', { 
+        userId: newUser._id, 
+        name: newUser.name, 
+        email: newUser.email,
+        permissions: finalPermissions
+      });
 
       // 返回用户信息（不包含密码）
       const { password, ...userResponse } = newUser;
@@ -614,19 +788,31 @@ router.post('/', authMiddleware, requireRole(['admin']), async (req, res) => {
       }
 
       // 创建新用户，默认密码为123456
-      const bcrypt = await import('bcryptjs');
-      const hashedPassword = await bcrypt.default.hash('123456', 12);
+      // 注意：不需要手动哈希密码，User模型的中间件会自动处理
+      console.log('🔐 MongoDB模式创建用户，密码将由模型中间件自动哈希');
+
+      // 根据角色设置默认权限
+      const defaultPermissions = getDefaultPermissionsByRole(role);
+      const finalPermissions = permissions || defaultPermissions;
 
       const user = new User({
         name,
         email,
-        password: hashedPassword,
+        password: '123456', // 直接使用明文密码，模型中间件会自动哈希
         role: role || 'developer',
         department: department || '',
-        permissions: permissions || ['read', 'write']
+        position: position || '', // 添加职位字段
+        phone: phone || '', // 添加手机号字段
+        permissions: finalPermissions
       });
 
       await user.save();
+      console.log('✅ MongoDB用户创建成功:', { 
+        userId: user._id, 
+        name: user.name, 
+        email: user.email,
+        permissions: finalPermissions
+      });
 
       // 返回用户信息（不包含密码）
       const userResponse = {
@@ -636,6 +822,8 @@ router.post('/', authMiddleware, requireRole(['admin']), async (req, res) => {
         role: user.role,
         status: user.status,
         department: user.department,
+        position: user.position,
+        phone: user.phone,
         permissions: user.permissions,
         createdAt: user.createdAt
       };
@@ -648,10 +836,17 @@ router.post('/', authMiddleware, requireRole(['admin']), async (req, res) => {
     }
   } catch (error) {
     console.error('创建用户失败:', error);
+    console.error('错误详情:', {
+      errorMessage: error.message,
+      errorStack: error.stack,
+      requestBody: req.body,
+      role: req.body.role
+    });
     res.status(500).json({
       success: false,
       message: '创建用户失败',
-      error: error.message
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -1086,9 +1281,21 @@ router.post('/:id/activity-logs', authMiddleware, async (req, res) => {
 
     if (global.memoryDB) {
       // 内存数据库模式
+      // 获取用户名
+      let userName = '未知用户';
+      try {
+        const user = global.memoryDB.users.find(u => u._id === req.params.id);
+        if (user && user.name) {
+          userName = user.name;
+        }
+      } catch (userError) {
+        userName = '未知用户';
+      }
+      
       const activityLog = {
         _id: Date.now().toString(),
         userId: req.params.id,
+        userName: userName,
         action,
         description,
         details,
@@ -1111,8 +1318,20 @@ router.post('/:id/activity-logs', authMiddleware, async (req, res) => {
       });
     } else {
       // MongoDB模式
+      // 获取用户名
+      let userName = '未知用户';
+      try {
+        const user = await User.findById(req.params.id).select('name');
+        if (user && user.name) {
+          userName = user.name;
+        }
+      } catch (userError) {
+        userName = '未知用户';
+      }
+      
       const activityLog = new UserActivityLog({
         userId: req.params.id,
+        userName: userName,
         action,
         description,
         details,

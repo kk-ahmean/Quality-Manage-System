@@ -11,33 +11,51 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// 模拟数据
-const mockUsers = [
+// 模拟用户数据
+const users = [
   {
     id: '1',
-    username: 'admin',
     name: '系统管理员',
     email: 'admin@example.com',
     role: 'admin',
     status: 'active',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
+    phone: '13800138000',
     department: '技术部',
     position: '系统管理员',
+    permissions: ['read', 'write', 'delete', 'admin'],
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-01T00:00:00Z'
   },
   {
     id: '2',
-    username: 'zhangsan',
-    name: '张三',
-    email: 'zhangsan@example.com',
+    name: '开发工程师',
+    email: 'developer@example.com',
     role: 'developer',
     status: 'active',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=developer',
+    phone: '13800138001',
     department: '开发部',
-    position: '开发工程师',
+    position: '高级开发工程师',
+    permissions: ['read', 'write'],
     createdAt: '2024-01-02T00:00:00Z',
     updatedAt: '2024-01-02T00:00:00Z'
+  },
+  {
+    id: '3',
+    name: '测试工程师',
+    email: 'tester@example.com',
+    role: 'tester',
+    status: 'active',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=tester',
+    phone: '13800138002',
+    department: '测试部',
+    position: '测试工程师',
+    permissions: ['read', 'write'],
+    createdAt: '2024-01-03T00:00:00Z',
+    updatedAt: '2024-01-03T00:00:00Z'
   }
-];
+]
 
 const mockBugs = [
   {
@@ -191,17 +209,29 @@ app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
   
   // 模拟登录验证
-  const user = mockUsers.find(u => u.email === email);
+  const user = users.find(u => u.name === email || u.email === email);
   
   if (user && password === 'admin123') {
-    const token = `mock_token_${user.id}_${Date.now()}`;
     res.json({
       success: true,
+      message: '登录成功',
       data: {
-        user,
-        token
-      },
-      message: '登录成功'
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          avatar: user.avatar,
+          phone: user.phone,
+          department: user.department,
+          position: user.position,
+          permissions: user.permissions,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt
+        },
+        token: 'mock-jwt-token-' + Date.now()
+      }
     });
   } else {
     res.status(401).json({
@@ -253,7 +283,7 @@ app.get('/api/users', (req, res) => {
   const { page = 1, pageSize = 20 } = req.query;
   const start = (page - 1) * pageSize;
   const end = start + parseInt(pageSize);
-  const paginatedUsers = mockUsers.slice(start, end);
+  const paginatedUsers = users.slice(start, end);
   
   res.json({
     success: true,
@@ -262,22 +292,30 @@ app.get('/api/users', (req, res) => {
       pagination: {
         page: parseInt(page),
         pageSize: parseInt(pageSize),
-        total: mockUsers.length
+        total: users.length
       }
     }
   });
 });
 
 app.post('/api/users', (req, res) => {
+  // 创建新用户
   const newUser = {
-    id: Date.now().toString(),
-    ...req.body,
+    id: (users.length + 1).toString(),
+    name: req.body.name,
+    email: req.body.email,
+    role: req.body.role || 'user',
     status: 'active',
+    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${req.body.name}`,
+    phone: req.body.phone || '',
+    department: req.body.department || '',
+    position: req.body.position || '',
+    permissions: req.body.permissions || ['read'],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
   
-  mockUsers.push(newUser);
+  users.push(newUser);
   
   res.json({
     success: true,

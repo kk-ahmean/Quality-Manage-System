@@ -2,23 +2,23 @@ import React, { useEffect } from 'react'
 import { Form, Input, Button, Card, message, Typography, Space, Modal } from 'antd'
 import { UserOutlined, LockOutlined, BugOutlined } from '@ant-design/icons'
 import { useAuthStore } from '../stores/authStore'
+import { authAPI } from '../services/api'
 import './LoginPage.css'
 import { useState } from 'react'
 
 const { Title, Text } = Typography
 
 interface LoginForm {
-  username: string
+  name: string
   password: string
   remember: boolean
 }
 
 const LoginPage: React.FC = () => {
   const { login, isLoading, error, clearError } = useAuthStore()
-  const [forgotVisible, setForgotVisible] = useState(false)
-  const [forgotLoading, setForgotLoading] = useState(false)
   const [resetVisible, setResetVisible] = useState(false)
   const [resetToken, setResetToken] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
 
   // 检查URL token
   useEffect(() => {
@@ -30,50 +30,28 @@ const LoginPage: React.FC = () => {
     }
   }, [])
 
-  // 忘记密码提交
-  const handleForgot = async (values: { username: string; email: string }) => {
-    setForgotLoading(true)
-    try {
-      const res = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values)
-      })
-      if (res.ok) {
-        message.success('重置邮件已发送，请查收邮箱')
-        setForgotVisible(false)
-      } else {
-        const data = await res.json()
-        message.error(data.message || '发送失败')
-      }
-    } catch {
-      message.error('网络错误，发送失败')
-    } finally {
-      setForgotLoading(false)
-    }
-  }
-
   // 重置密码提交
   const handleReset = async (values: { password: string }) => {
-    setForgotLoading(true)
+    setResetLoading(true)
     try {
-      const res = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: resetToken, password: values.password })
-      })
-      if (res.ok) {
+      const response = await authAPI.resetPassword(resetToken, values.password)
+      
+      if (response.data.success) {
         message.success('密码重置成功，请重新登录')
         setResetVisible(false)
         setTimeout(() => window.location.href = '/login', 1000)
       } else {
-        const data = await res.json()
-        message.error(data.message || '重置失败')
+        message.error(response.data.message || '重置失败')
       }
-    } catch {
-      message.error('网络错误，重置失败')
+    } catch (error: any) {
+      console.error('重置密码失败:', error)
+      if (error.response?.data?.message) {
+        message.error(error.response.data.message)
+      } else {
+        message.error('网络错误，重置失败')
+      }
     } finally {
-      setForgotLoading(false)
+      setResetLoading(false)
     }
   }
 
@@ -84,15 +62,11 @@ const LoginPage: React.FC = () => {
 
   const onFinish = async (values: LoginForm) => {
     try {
-      await login(values.username, values.password)
+      await login(values.name, values.password)
       // 登录成功后，用户会被重定向到仪表盘，所以这里不需要显示成功消息
     } catch (err) {
       // 错误已在store中处理
     }
-  }
-
-  const handleForgotPassword = () => {
-    setForgotVisible(true)
   }
 
   return (
@@ -122,7 +96,7 @@ const LoginPage: React.FC = () => {
               className="login-form"
             >
               <Form.Item
-                name="username"
+                name="name"
                 rules={[
                   { required: true, message: '请输入用户名！' }
                 ]}
@@ -130,7 +104,7 @@ const LoginPage: React.FC = () => {
                 <Input
                   prefix={<UserOutlined />}
                   placeholder="请输入用户名"
-                  autoComplete="username"
+                  autoComplete="name"
                 />
               </Form.Item>
 
@@ -167,43 +141,24 @@ const LoginPage: React.FC = () => {
               </Form.Item>
 
               <div className="login-footer">
-                <Button type="link" onClick={handleForgotPassword}>
-                  忘记密码？
-                </Button>
+                {/* 忘记密码功能已移至系统设置页面 */}
               </div>
             </Form>
 
-            {/* 演示账户信息 */}
-            <div className="demo-accounts">
-              <Text type="secondary">演示账户：</Text>
-              <div className="account-list">
-                <Text code>admin / 123456</Text>
-                <Text code>developer / 123456</Text>
-                <Text code>tester / 123456</Text>
+            {/* 演示账户信息（已隐藏，仅保留注释，便于后续恢复） */}
+            {false && (
+              <div className="demo-accounts">
+                <Text type="secondary">演示账户：</Text>
+                <div className="account-list">
+                  <Text code>admin / 123456</Text>
+                  <Text code>developer / 123456</Text>
+                  <Text code>tester / 123456</Text>
+                </div>
               </div>
-            </div>
+            )}
           </Card>
         </div>
       </div>
-      <Modal
-        open={forgotVisible}
-        title="找回密码"
-        onCancel={() => setForgotVisible(false)}
-        footer={null}
-        destroyOnClose
-      >
-        <Form onFinish={handleForgot} layout="vertical">
-          <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
-            <Input placeholder="请输入用户名" />
-          </Form.Item>
-          <Form.Item name="email" label="邮箱" rules={[{ required: true, type: 'email', message: '请输入有效邮箱' }]}>
-            <Input placeholder="请输入邮箱" />
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={forgotLoading} block>发送重置邮件</Button>
-          </Form.Item>
-        </Form>
-      </Modal>
       <Modal
         open={resetVisible}
         title="重置密码"
@@ -216,7 +171,7 @@ const LoginPage: React.FC = () => {
             <Input.Password placeholder="请输入新密码" />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={forgotLoading} block>重置密码</Button>
+            <Button type="primary" htmlType="submit" loading={resetLoading} block>重置密码</Button>
           </Form.Item>
         </Form>
       </Modal>

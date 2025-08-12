@@ -4,6 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, BellOutlined, LockOutlined 
 import { LanguageContext } from '../main';
 import { useTranslation } from '../hooks/useTranslation';
 import { useAuthStore } from '../stores/authStore';
+import { authAPI } from '../services/api';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -21,7 +22,7 @@ interface Announcement {
 const SystemSettingsPage: React.FC = () => {
   const { locale, setLocale } = useContext(LanguageContext);
   const { t } = useTranslation();
-  const { user, updateUserPassword } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const [form] = Form.useForm();
   const [passwordForm] = Form.useForm();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -43,6 +44,7 @@ const SystemSettingsPage: React.FC = () => {
       setTheme(savedTheme);
       document.body.setAttribute('data-theme', savedTheme);
     }
+    
   }, []);
 
   // 保存公告数据到localStorage
@@ -70,34 +72,35 @@ const SystemSettingsPage: React.FC = () => {
   // 处理密码重置
   const handlePasswordReset = async (values: any) => {
     try {
-      // 模拟API调用
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // 调用后端API修改密码
+      const response = await authAPI.changeUserPassword(
+        values.currentPassword, 
+        values.newPassword
+      );
       
-      // 调试信息
-      console.log('密码重置尝试:', {
-        username: user?.username,
-        userPassword: user?.password,
-        currentPassword: values.currentPassword,
-        newPassword: values.newPassword
-      });
-      
-      // 这里应该调用后端API验证当前密码并更新新密码
-      // 模拟验证逻辑 - 使用当前用户的密码进行验证
-      if (user && user.password === values.currentPassword) {
-        // 更新用户密码
-        updateUserPassword(user.username, values.newPassword);
-        message.success('密码重置成功');
+      if (response.data.success) {
+        message.success('密码重置成功，请重新登录');
         setPasswordModalVisible(false);
         passwordForm.resetFields();
+        
+        // 延迟执行登出和跳转，让用户看到成功消息
+        setTimeout(() => {
+          // 清除认证状态
+          logout();
+          
+          // 强制跳转到登录页面，清除所有状态
+          window.location.replace('/login');
+        }, 2000); // 增加到2秒，让用户有足够时间看到成功消息
       } else {
-        console.log('密码验证失败:', {
-          expected: user?.password,
-          provided: values.currentPassword
-        });
-        message.error('当前密码错误');
+        message.error(response.data.message || '密码重置失败');
       }
-    } catch (error) {
-      message.error('密码重置失败');
+    } catch (error: any) {
+      console.error('密码重置失败:', error);
+      if (error.response?.data?.message) {
+        message.error(error.response.data.message);
+      } else {
+        message.error('密码重置失败，请检查网络连接');
+      }
     }
   };
 
@@ -210,7 +213,7 @@ const SystemSettingsPage: React.FC = () => {
         }
       >
         <p style={{ color: '#666', marginBottom: 0 }}>
-          您可以在这里重置您的登录密码。重置密码需要验证当前密码以确保安全性。
+          您可以在这里重置您的登录密码。重置密码需要验证当前密码以确保安全性，新密码至少需要6个字符。
         </p>
       </Card>
 
@@ -340,7 +343,7 @@ const SystemSettingsPage: React.FC = () => {
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit">
-                确认重置
+                确认修改
               </Button>
               <Button onClick={() => {
                 setPasswordModalVisible(false);

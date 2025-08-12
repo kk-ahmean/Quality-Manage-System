@@ -7,32 +7,143 @@ const projectSchema = new mongoose.Schema({
     trim: true,
     maxlength: [200, '项目名称不能超过200个字符']
   },
+  model: {
+    type: String,
+    required: [true, '型号不能为空'],
+    trim: true,
+    maxlength: [100, '型号不能超过100个字符']
+  },
+  sku: {
+    type: String,
+    required: [true, 'SKU不能为空'],
+    trim: true,
+    maxlength: [100, 'SKU不能超过100个字符']
+  },
   description: {
     type: String,
     trim: true,
-    maxlength: [2000, '项目描述不能超过2000个字符']
+    maxlength: [2000, '项目描述不能超过2000个字符'],
+    default: ''
   },
   categoryLevel3: {
     type: String,
-    required: [true, '三级类目不能为空'],
     trim: true,
-    maxlength: [100, '三级类目不能超过100个字符']
+    maxlength: [100, '三级类目不能超过100个字符'],
+    default: '默认类目'
   },
+  interfaceFeatures: {
+    type: String,
+    trim: true,
+    maxlength: [1000, '接口特性不能超过1000个字符'],
+    default: ''
+  },
+  supplier: {
+    type: String,
+    trim: true,
+    maxlength: [200, '供应商不能超过200个字符'],
+    default: ''
+  },
+  hardwareSolution: {
+    type: String,
+    trim: true,
+    maxlength: [1000, '硬件方案不能超过1000个字符'],
+    default: ''
+  },
+  remarks: {
+    type: String,
+    trim: true,
+    maxlength: [2000, '备注不能超过2000个字符'],
+    default: ''
+  },
+  productImages: [{
+    name: {
+      type: String,
+      default: '产品图片'
+    },
+    url: {
+      type: String,
+      default: ''
+    },
+    size: {
+      type: Number,
+      default: 0
+    },
+    type: {
+      type: String,
+      default: 'image/jpeg'
+    },
+    uploadedBy: {
+      type: String,
+      default: '系统管理员'
+    },
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  versions: [{
+    hardwareVersion: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    softwareVersion: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    description: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  stages: [{
+    stage: {
+      type: String,
+      enum: ['EVT', 'DVT', 'PVT', 'MP', '其他'],
+      default: 'EVT'
+    },
+    sampleQuantity: {
+      type: Number,
+      min: [1, '送样数量必须大于0'],
+      default: 1
+    },
+    sampleReason: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    testResult: {
+      type: String,
+      enum: ['PASS', 'FAIL', '条件接收'],
+      default: 'PASS'
+    },
+    approvalVersion: {
+      type: String,
+      trim: true,
+      default: ''
+    }
+  }],
   level: {
     type: String,
-    enum: ['level1', 'level2', 'level3', 'level4'],
-    default: 'level1',
+    enum: ['level1', 'level2', 'level3', 'level4', 'L1', 'L2', 'L3', 'L4'],
+    default: 'L2',
     required: true
   },
   trade: {
     type: String,
-    enum: ['software', 'hardware', 'mechanical', 'electrical', 'other'],
-    default: 'software',
+    enum: ['software', 'hardware', 'mechanical', 'electrical', 'other', '内贸', '外贸', '内外贸'],
+    default: '内贸',
     required: true
   },
   status: {
     type: String,
-    enum: ['planning', 'in_progress', 'review', 'completed', 'cancelled'],
+    enum: ['planning', 'in_progress', 'review', 'completed', 'cancelled', '研发设计', 'EVT', 'DVT', 'PVT', 'MP', '生产制造', '测试验证', '已完成', '已取消'],
     default: 'planning',
     required: true
   },
@@ -69,15 +180,16 @@ const projectSchema = new mongoose.Schema({
     trim: true
   }],
   members: [{
-    user: {
+    userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true
     },
+    name: { type: String, required: true }, // 使用name字段
     role: {
       type: String,
-      enum: ['developer', 'tester', 'designer', 'manager', 'analyst'],
-      required: true
+      enum: ['admin', 'product_engineer', 'project_engineer', 'developer', 'dqe', 'tester'],
+      default: 'developer'
     },
     joinDate: {
       type: Date,

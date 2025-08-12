@@ -1,6 +1,6 @@
 import express from 'express';
 import Task from '../models/Task.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireCreatorOrAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -39,7 +39,8 @@ router.get('/', authMiddleware, async (req, res) => {
       if (search) {
         tasks = tasks.filter(task => 
           task.title.toLowerCase().includes(search.toLowerCase()) ||
-          (task.description && task.description.toLowerCase().includes(search.toLowerCase()))
+          (task.description && task.description.toLowerCase().includes(search.toLowerCase())) ||
+          (task.tags && Array.isArray(task.tags) && task.tags.some(tag => tag.toLowerCase().includes(search.toLowerCase())))
         );
       }
       
@@ -95,7 +96,11 @@ router.get('/', authMiddleware, async (req, res) => {
       
       // 搜索功能
       if (search) {
-        query.$text = { $search: search };
+        query.$or = [
+          { title: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } },
+          { tags: { $in: [new RegExp(search, 'i')] } }
+        ];
       }
 
       // 分页
@@ -376,7 +381,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 });
 
 // 删除任务
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', authMiddleware, requireCreatorOrAdmin('task'), async (req, res) => {
   try {
     if (global.memoryDB) {
       // 内存数据库模式

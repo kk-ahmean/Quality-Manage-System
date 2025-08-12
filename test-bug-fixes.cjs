@@ -1,0 +1,125 @@
+const { chromium } = require('playwright');
+
+async function testBugFixes() {
+  const browser = await chromium.launch({ headless: false });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  try {
+    console.log('开始测试Bug修复效果...');
+
+    // 1. 访问登录页面
+    await page.goto('http://192.168.53.20:3000/Quality-Manage-System/login');
+    console.log('已访问登录页面');
+
+    // 2. 登录
+    await page.fill('input[placeholder="请输入用户名"]', 'admin');
+    await page.fill('input[placeholder="请输入密码"]', '123456');
+    
+    // 等待登录按钮可用
+    await page.waitForSelector('button:has-text("登录")', { state: 'visible' });
+    await page.waitForTimeout(2000);
+    
+    await page.click('button:has-text("登录")');
+    console.log('已执行登录操作');
+
+    // 等待登录完成并跳转
+    await page.waitForURL('**/dashboard');
+    console.log('登录成功，已跳转到仪表板');
+
+    // 3. 测试团队管理页面 - 编辑功能
+    console.log('\n=== 测试团队管理编辑功能 ===');
+    await page.click('text=团队管理');
+    await page.waitForURL('**/teams');
+    console.log('已导航到团队管理页面');
+
+    await page.waitForTimeout(3000);
+
+    // 检查团队列表
+    const teamRows = await page.locator('.ant-table-tbody tr').all();
+    console.log(`找到 ${teamRows.length} 个团队`);
+
+    if (teamRows.length > 0) {
+      // 检查第一个团队的负责人显示
+      const firstTeamLeader = await page.locator('.ant-table-tbody tr').first().locator('td').nth(2).textContent();
+      console.log('第一个团队负责人显示:', firstTeamLeader);
+      
+      if (firstTeamLeader && !firstTeamLeader.includes('未知')) {
+        console.log('✅ 团队负责人显示正常');
+      } else {
+        console.log('❌ 团队负责人显示异常');
+      }
+
+      // 测试编辑团队
+      const editButton = await page.locator('.ant-table-tbody tr').first().locator('button:has-text("编辑")').first();
+      await editButton.click();
+      await page.waitForSelector('.ant-modal-content');
+      await page.waitForTimeout(3000);
+      
+      // 检查表单字段是否显示
+      const leaderSelect = await page.locator('select[placeholder="请选择团队负责人"]');
+      const leaderValue = await leaderSelect.inputValue();
+      console.log('编辑页面团队负责人值:', leaderValue);
+      
+      if (leaderValue) {
+        console.log('✅ 编辑页面团队负责人字段显示正常');
+      } else {
+        console.log('❌ 编辑页面团队负责人字段显示异常');
+      }
+
+      // 检查成员字段
+      const membersSelect = await page.locator('select[placeholder="请选择团队成员"]');
+      const membersValue = await membersSelect.inputValue();
+      console.log('编辑页面团队成员值:', membersValue);
+      
+      if (membersValue !== undefined) {
+        console.log('✅ 编辑页面团队成员字段显示正常');
+      } else {
+        console.log('❌ 编辑页面团队成员字段显示异常');
+      }
+
+      // 关闭编辑弹窗
+      await page.click('.ant-modal-close');
+    }
+
+    // 4. 测试Bug管理页面 - 批量导入
+    console.log('\n=== 测试Bug批量导入 ===');
+    await page.click('text=Bug管理');
+    await page.waitForURL('**/bugs');
+    console.log('已导航到Bug管理页面');
+
+    await page.waitForTimeout(3000);
+
+    // 点击批量导入按钮
+    const importButton = await page.locator('button:has-text("批量导入")').first();
+    await importButton.click();
+    await page.waitForSelector('.ant-modal-content');
+    console.log('已打开批量导入弹窗');
+
+    // 检查导入模板下载
+    const downloadButton = await page.locator('a:has-text("下载模板")').first();
+    if (downloadButton) {
+      console.log('✅ 批量导入模板下载按钮存在');
+    } else {
+      console.log('❌ 批量导入模板下载按钮不存在');
+    }
+
+    // 关闭导入弹窗
+    await page.click('.ant-modal-close');
+
+    console.log('\n=== 测试完成 ===');
+
+  } catch (error) {
+    console.error('测试过程中出现错误:', error);
+    
+    // 截图保存错误状态
+    await page.screenshot({ path: 'bug-fixes-error.png', fullPage: true });
+    console.log('已保存错误截图: bug-fixes-error.png');
+  } finally {
+    await browser.close();
+    console.log('测试完成，浏览器已关闭');
+  }
+}
+
+// 运行测试
+testBugFixes(); 

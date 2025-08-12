@@ -39,7 +39,7 @@ interface UserActions {
   getUserById: (userId: string) => User | undefined
   
   // 团队相关
-  fetchTeams: () => Promise<void>
+  fetchTeams: (page?: number, pageSize?: number, onPaginationUpdate?: (pagination: any) => void) => Promise<void>
   createTeam: (teamData: Omit<Team, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
   updateTeam: (teamId: string, teamData: Partial<Team>) => Promise<void>
   deleteTeam: (teamId: string) => Promise<void>
@@ -134,11 +134,16 @@ export const useUserStore = create<UserStore>((set, get) => ({
       if (response.data && response.data.success) {
         const { users, pagination } = response.data.data
         
-        // 统一处理用户ID字段，将_id映射为id
+        console.log('原始用户数据:', users.slice(0, 2))
+        
+        // 统一处理用户ID字段，确保格式一致
         const normalizedUsers = users.map(user => ({
           ...user,
-          id: user._id || user.id
+          id: user.id || user._id,
+          _id: user._id || user.id
         }))
+        
+        console.log('标准化用户数据:', normalizedUsers.slice(0, 2))
         
         set({
           users: normalizedUsers,
@@ -269,18 +274,36 @@ export const useUserStore = create<UserStore>((set, get) => ({
     return get().users.find(user => user.id === userId)
   },
 
-  fetchTeams: async () => {
+  fetchTeams: async (page = 1, pageSize = 10, onPaginationUpdate?: (pagination: any) => void) => {
     set({ loading: true, error: null })
     
     try {
-      // 调用真实API
-      const response = await userAPI.getTeams()
+      // 调用真实API，传递分页参数
+      const response = await userAPI.getTeams({ page, limit: pageSize })
       
       if (response.data && response.data.success) {
+        console.log('原始团队数据:', response.data.data.slice(0, 2))
+        
+        // 统一处理团队ID字段，确保格式一致
+        const normalizedTeams = response.data.data.map((team: any) => ({
+          ...team,
+          id: team.id || team._id,
+          leader: team.leader || team.leaderInfo?.id,
+          members: team.members || []
+        }))
+        
+        console.log('标准化团队数据:', normalizedTeams.slice(0, 2))
+        console.log('分页信息:', response.data.pagination)
+        
         set({
-          teams: response.data.data,
+          teams: normalizedTeams,
           loading: false
         })
+        
+        // 如果有分页更新回调，则调用
+        if (onPaginationUpdate && response.data.pagination) {
+          onPaginationUpdate(response.data.pagination)
+        }
       } else {
         throw new Error(response.data?.message || '获取团队列表失败')
       }
@@ -300,9 +323,6 @@ export const useUserStore = create<UserStore>((set, get) => ({
       const response = await userAPI.createTeam(teamData)
       
       if (response.data && response.data.success) {
-        // 重新获取团队列表
-        await get().fetchTeams()
-        
         set({ loading: false })
       } else {
         throw new Error(response.data?.message || '创建团队失败')
@@ -323,9 +343,6 @@ export const useUserStore = create<UserStore>((set, get) => ({
       const response = await userAPI.updateTeam(teamId, teamData)
       
       if (response.data && response.data.success) {
-        // 重新获取团队列表
-        await get().fetchTeams()
-        
         set({ loading: false })
       } else {
         throw new Error(response.data?.message || '更新团队失败')
@@ -346,9 +363,6 @@ export const useUserStore = create<UserStore>((set, get) => ({
       const response = await userAPI.deleteTeam(teamId)
       
       if (response.data && response.data.success) {
-        // 重新获取团队列表
-        await get().fetchTeams()
-        
         set({ loading: false })
       } else {
         throw new Error(response.data?.message || '删除团队失败')

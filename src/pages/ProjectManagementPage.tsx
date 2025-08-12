@@ -55,11 +55,26 @@ import {
   TestResult,
   ProjectVersionInfo
 } from '../types/project';
+import { UserRole, Permission } from '../types/user';
+import { canShowDeleteButton, hasPermission } from '../utils/permissions';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
+
+// 角色显示映射
+const getRoleDisplayName = (role: UserRole) => {
+  const roleMap: Record<UserRole, string> = {
+    admin: '管理员',
+    product_engineer: '产品工程师',
+    project_engineer: '项目工程师',
+    developer: '开发工程师',
+    dqe: 'DQE工程师',
+    tester: '测试工程师'
+  };
+  return roleMap[role] || role;
+};
 
 const ProjectManagementPage: React.FC = () => {
   const {
@@ -253,7 +268,10 @@ const ProjectManagementPage: React.FC = () => {
           >
             查看
           </Button>
-          {(user?.role === 'admin' || record.creator === user?.id) && (
+          {(hasPermission(
+            (user?.permissions || []) as Permission[],
+            'project:update'
+          ) || record.creator === user?.id) && (
             <Button
               type="link"
               size="small"
@@ -263,7 +281,12 @@ const ProjectManagementPage: React.FC = () => {
               编辑
             </Button>
           )}
-          {canDeleteProject(record) && (
+          {canShowDeleteButton(
+            (user?.permissions || []) as Permission[],
+            user?.id || '',
+            record.creator || '',
+            'project'
+          ) && (
             <Popconfirm
               title="确定要删除这个项目吗？"
               onConfirm={() => handleDelete(record.id)}
@@ -360,8 +383,8 @@ const ProjectManagementPage: React.FC = () => {
         const user = users.find(u => u.id === userId);
         return {
           userId,
-          userName: user?.name || '',
-          role: user?.role || '研发'
+          name: user?.name || '',
+          role: user?.role || 'developer'
         };
       });
 
@@ -370,17 +393,20 @@ const ProjectManagementPage: React.FC = () => {
         version.hardwareVersion && version.softwareVersion
       ) || [];
 
-      // 处理产品图片数据 - 保存图片的Base64数据
-      const productImages = values.productImages?.filter((img: any) => img.status === 'done') || [];
-      const imageData = productImages.map((img: any) => {
-        // 使用图片的Base64数据
-        return {
-          name: img.name || img.fileName,
-          url: img.url, // Base64数据
-          size: img.size,
-          type: img.type || 'image/jpeg'
-        };
-      }).filter(Boolean);
+      // 处理产品图片数据 - 重新启用图片上传功能
+      let productImages = [];
+      if (values.productImages && values.productImages.length > 0) {
+        productImages = values.productImages.map((img: any) => {
+          // 只保留必要的图片信息，移除可能导致序列化问题的字段
+          const { uid, _id, originFileObj, fileList, ...cleanImg } = img;
+          return {
+            name: cleanImg.name || '产品图片',
+            url: cleanImg.url || '',
+            size: cleanImg.size || 0,
+            type: cleanImg.type || 'image/jpeg'
+          };
+        }).filter((img: any) => img.url && img.url.length > 0); // 只保留有效的图片
+      }
 
       // 清理数据，移除所有文件对象和不可序列化的字段
       const cleanValues = { ...values };
@@ -404,7 +430,7 @@ const ProjectManagementPage: React.FC = () => {
         tags: values.tags || [],
         members: projectMembers,
         versions,
-        productImages: imageData, // 发送图片数据对象
+        productImages: productImages, // 使用处理后的图片数据
         stages: values.stages?.filter((stage: any) => stage.stage && stage.sampleQuantity) || [],
         supplier: values.supplier, // 确保发送供应商字段
         hardwareSolution: values.hardwareSolution, // 确保发送硬件方案字段
@@ -412,6 +438,7 @@ const ProjectManagementPage: React.FC = () => {
       };
 
       console.log('发送的项目数据:', formData); // 调试信息
+      console.log('图片数据:', productImages); // 调试信息
       console.log('数据类型检查:', {
         model: typeof formData.model,
         level: typeof formData.level,
@@ -509,38 +536,69 @@ const ProjectManagementPage: React.FC = () => {
       
       // 检查数量限制
       if (fileList.length >= 5) {
-        message.warning('最多只能上传5张图片');
+        message.error('最多只能上传5张图片！');
         return;
       }
       
-      // 创建预览URL
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const newFile = {
-          uid: Math.random().toString(36).substr(2, 9),
-          name: file.name,
-          status: 'done',
-          url: e.target?.result as string,
-          originFileObj: file,
-          size: file.size
-        };
+      // 压缩图片
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new window.Image();
+      
+      img.onload = () => {
+        // 计算压缩后的尺寸
+        const maxWidth = 800;
+        const maxHeight = 600;
+        let { width, height } = img;
         
-        newFiles.push(newFile);
-        addedCount++;
-        
-        // 当所有文件都处理完成后，一次性更新表单
-        if (addedCount === files.length) {
-          const updatedFileList = [...fileList, ...newFiles];
-          form.setFieldValue('productImages', updatedFileList);
-          message.success(`成功上传 ${addedCount} 张图片`);
-          
-          // 强制重新渲染预览区域
-          setTimeout(() => {
-            form.validateFields(['productImages']);
-          }, 100);
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
         }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // 绘制压缩后的图片
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        // 转换为Base64
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const newFile = {
+                uid: Date.now() + Math.random(),
+                name: file.name,
+                status: 'done',
+                url: reader.result as string,
+                size: blob.size,
+                type: file.type,
+                originFileObj: file
+              };
+              
+              newFiles.push(newFile);
+              addedCount++;
+              
+              if (addedCount === files.length) {
+                const updatedFileList = [...fileList, ...newFiles];
+                form.setFieldsValue({ productImages: updatedFileList });
+                message.success(`成功上传 ${addedCount} 张图片`);
+              }
+            };
+            reader.readAsDataURL(blob);
+          }
+        }, 'image/jpeg', 0.8); // 压缩质量80%
       };
-      reader.readAsDataURL(file);
+      
+      img.src = URL.createObjectURL(file);
     });
   };
 
@@ -584,13 +642,18 @@ const ProjectManagementPage: React.FC = () => {
             <Title level={4} style={{ margin: 0 }}>项目管理</Title>
           </Col>
           <Col>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleCreate}
-            >
-              新建项目
-            </Button>
+            {hasPermission(
+              (user?.permissions || []) as Permission[],
+              'project:create'
+            ) && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleCreate}
+              >
+                新建项目
+              </Button>
+            )}
           </Col>
         </Row>
 
@@ -608,7 +671,8 @@ const ProjectManagementPage: React.FC = () => {
           </Col>
           <Col span={4}>
             <Select
-              placeholder="等级"
+              className="filter-select"
+              placeholder="请选择等级"
               style={{ width: '100%' }}
               allowClear
               onChange={(value) => handleFilter('level', value ? [value] : undefined)}
@@ -620,7 +684,8 @@ const ProjectManagementPage: React.FC = () => {
           </Col>
           <Col span={4}>
             <Select
-              placeholder="内/外贸"
+              className="filter-select"
+              placeholder="请选择内/外贸"
               style={{ width: '100%' }}
               allowClear
               onChange={(value) => handleFilter('trade', value ? [value] : undefined)}
@@ -632,7 +697,8 @@ const ProjectManagementPage: React.FC = () => {
           </Col>
           <Col span={4}>
             <Select
-              placeholder="状态"
+              className="filter-select"
+              placeholder="请选择状态"
               style={{ width: '100%' }}
               allowClear
               onChange={(value) => handleFilter('status', value ? [value] : undefined)}
@@ -808,7 +874,7 @@ const ProjectManagementPage: React.FC = () => {
                 >
                   {users.map(user => (
                     <Option key={user.id} value={user.id}>
-                      {user.name} ({user.role})
+                      {user.name} ({getRoleDisplayName(user.role)})
                     </Option>
                   ))}
                 </Select>
@@ -817,65 +883,75 @@ const ProjectManagementPage: React.FC = () => {
             <Col span={15}>
               <Form.Item name="productImages" label="产品图片">
                 <div>
+                  {/* 图片上传区域 */}
+                  <div style={{ 
+                    padding: '20px', 
+                    textAlign: 'center', 
+                    backgroundColor: '#f5f5f5', 
+                    border: '1px dashed #d9d9d9',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s'
+                  }}
+                  onClick={handleImageUploadClick}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#1890ff';
+                    e.currentTarget.style.backgroundColor = '#f0f8ff';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#d9d9d9';
+                    e.currentTarget.style.backgroundColor = '#f5f5f5';
+                  }}
+                  >
+                    <PictureOutlined style={{ fontSize: '24px', color: '#999', marginBottom: '8px' }} />
+                    <div style={{ color: '#666' }}>点击上传图片</div>
+                    <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                      支持 JPG、PNG、GIF 格式，单个文件不超过 2MB，最多上传 5 张图片
+                    </div>
+                  </div>
+                  
                   {/* 图片预览区域 */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-                    {(form.getFieldValue('productImages') || []).map((file: any, index: number) => (
-                      <div key={file.uid || index} style={{ position: 'relative', width: '100px', height: '100px' }}>
-                        <img
-                          src={file.url}
-                          alt={file.name}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer' }}
-                          onClick={() => handleImagePreview(file)}
-                        />
-                        <Button
-                          type="text"
-                          danger
-                          icon={<CloseOutlined />}
-                          size="small"
-                          style={{
-                            position: 'absolute',
-                            top: '-8px',
-                            right: '-8px',
-                            background: 'rgba(255, 255, 255, 0.9)',
-                            borderRadius: '50%',
-                            width: '20px',
-                            height: '20px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: 0,
-                            zIndex: 1
-                          }}
-                          onClick={() => handleImageRemove(file)}
-                        />
+                  {form.getFieldValue('productImages') && form.getFieldValue('productImages').length > 0 && (
+                    <div style={{ marginTop: '16px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {form.getFieldValue('productImages').map((file: any, index: number) => (
+                          <div key={file.uid || index} style={{ position: 'relative' }}>
+                            <img
+                              src={file.url}
+                              alt={file.name}
+                              style={{
+                                width: '80px',
+                                height: '80px',
+                                objectFit: 'cover',
+                                borderRadius: '4px',
+                                border: '1px solid #d9d9d9'
+                              }}
+                            />
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<DeleteOutlined />}
+                              style={{
+                                position: 'absolute',
+                                top: '-8px',
+                                right: '-8px',
+                                background: '#ff4d4f',
+                                color: 'white',
+                                borderRadius: '50%',
+                                width: '20px',
+                                height: '20px',
+                                padding: 0,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              onClick={() => handleImageRemove(file)}
+                            />
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  
-                  {/* 上传按钮 */}
-                  {(!form.getFieldValue('productImages') || form.getFieldValue('productImages').length < 5) && (
-                    <Button
-                      type="dashed"
-                      icon={<PictureOutlined />}
-                      onClick={handleImageUploadClick}
-                      style={{ 
-                        width: '100px', 
-                        height: '100px', 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        alignItems: 'center', 
-                        justifyContent: 'center',
-                        border: '1px dashed #d9d9d9',
-                        borderRadius: '6px'
-                      }}
-                    >
-                      <div style={{ marginTop: 8 }}>上传图片</div>
-                    </Button>
+                    </div>
                   )}
-                  
-                  <div style={{ marginTop: 8, color: '#666', fontSize: '12px' }}>
-                    支持 JPG、PNG、GIF 格式，单个文件不超过 2MB，最多上传 5 张图片
-                  </div>
                 </div>
               </Form.Item>
             </Col>
@@ -1186,7 +1262,7 @@ const ProjectManagementPage: React.FC = () => {
               <Space wrap>
                 {selectedProject.members.map((member, index) => (
                   <Tag key={index} icon={<UserOutlined />} color="blue">
-                    {member.userName} ({member.role})
+                    {member.name} ({getRoleDisplayName(member.role as UserRole)})
                   </Tag>
                 ))}
               </Space>

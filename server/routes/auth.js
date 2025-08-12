@@ -4,6 +4,29 @@ import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import { authMiddleware } from '../middleware/auth.js';
 
+// 根据角色获取默认权限
+const getDefaultPermissionsByRole = (role) => {
+  const adminPermissions = [
+    'user:read', 'user:create', 'user:update', 'user:delete',
+    'team:read', 'team:create', 'team:update', 'team:delete',
+    'bug:read', 'bug:create', 'bug:update', 'bug:delete',
+    'task:read', 'task:create', 'task:update', 'task:delete',
+    'project:read', 'project:create', 'project:update', 'project:delete',
+    'dashboard:read', 'system:settings'
+  ];
+
+  const defaultPermissions = [
+    'user:read',
+    'team:read', 'team:create', 'team:update',
+    'bug:read', 'bug:create', 'bug:update',
+    'task:read', 'task:create', 'task:update',
+    'project:read', 'project:create', 'project:update',
+    'dashboard:read', 'system:settings'
+  ];
+
+  return role === 'admin' ? adminPermissions : defaultPermissions;
+};
+
 const router = express.Router();
 
 // 生成JWT令牌
@@ -13,13 +36,11 @@ const generateToken = (id) => {
   });
 };
 
-// 内存数据库模式下的用户查找
-const findUserInMemory = (username) => {
-  if (!global.memoryDB) return null;
+// 内存数据库用户查找函数
+const findUserInMemory = (name) => {
   return global.memoryDB.users.find(user => 
-    user.email === username || 
-    user.name === username || 
-    user.username === username
+    user.name === name ||      // 优先用name字段查找
+    user.email === name        // 支持用email查找
   );
 };
 
@@ -49,9 +70,24 @@ router.post('/register', async (req, res) => {
       });
     }
 
+    // 验证密码强度
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: '密码至少6个字符'
+      });
+    }
+
+    if (!/^(?=.*[a-zA-Z])(?=.*\d)/.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message: '密码必须包含字母和数字'
+      });
+    }
+
     // 检查邮箱是否已存在
     let existingUser;
-    if (global.memoryDB) {
+    if (process.env.USE_MEMORY_DB === 'true' && global.memoryDB) {
       existingUser = findUserInMemory(email);
     } else {
       existingUser = await User.findOne({ email });
@@ -66,7 +102,7 @@ router.post('/register', async (req, res) => {
 
     // 创建新用户
     let user;
-    if (global.memoryDB) {
+    if (process.env.USE_MEMORY_DB === 'true' && global.memoryDB) {
       // 内存数据库模式
       const hashedPassword = await bcrypt.hash(password, 12);
       user = createUserInMemory({
@@ -75,18 +111,20 @@ router.post('/register', async (req, res) => {
         password: hashedPassword,
         role,
         status: 'active',
-        permissions: ['read', 'write']
+        permissions: getDefaultPermissionsByRole(role)
       });
     } else {
       // MongoDB模式
+      console.log('🔗 使用MongoDB模式创建用户:', { name, email, role });
       user = new User({
         name,
         email,
         password,
         role,
-        permissions: ['read', 'write']
+        permissions: getDefaultPermissionsByRole(role)
       });
       await user.save();
+      console.log('✅ 用户创建成功:', user._id);
     }
 
     // 生成JWT令牌
@@ -113,10 +151,18 @@ router.post('/register', async (req, res) => {
     });
   } catch (error) {
     console.error('用户注册失败:', error);
+    console.error('错误详情:', {
+      name: req.body.name,
+      email: req.body.email,
+      role: req.body.role,
+      errorMessage: error.message,
+      errorStack: error.stack
+    });
     res.status(500).json({
       success: false,
       message: '用户注册失败',
-      error: error.message
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -124,27 +170,41 @@ router.post('/register', async (req, res) => {
 // 用户登录
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { name, password } = req.body;
 
     // 验证必填字段
-    if (!username || !password) {
+    if (!name || !password) {
       return res.status(400).json({
         success: false,
         message: '请提供用户名和密码'
       });
     }
 
-    // 查找用户
+    // 查找用户 - 支持用email、name登录
     let user;
-    if (global.memoryDB) {
+    if (global.memoryDB && process.env.USE_MEMORY_DB === 'true') {
       // 内存数据库模式
-      user = findUserInMemory(username);
+      user = findUserInMemory(name);
+      console.log('🔍 内存数据库模式查找用户:', { 
+        searchName: name, 
+        foundUser: user ? { id: user._id, name: user.name, email: user.email } : null 
+      });
     } else {
-      // MongoDB模式
-      user = await User.findOne({ $or: [{ email: username }, { name: username }] }).select('+password');
+      // MongoDB模式 - 优先使用name字段，然后email
+      user = await User.findOne({ 
+        $or: [
+          { name: name },     // 优先用name字段登录
+          { email: name }     // 支持用email登录
+        ] 
+      }).select('+password');
+      console.log('🔍 MongoDB模式查找用户:', { 
+        searchName: name, 
+        foundUser: user ? { id: user._id, name: user.name, email: user.email } : null 
+      });
     }
     
     if (!user) {
+      console.log('❌ 用户未找到:', { searchName: name });
       return res.status(401).json({
         success: false,
         message: '用户名或密码错误'
@@ -153,6 +213,7 @@ router.post('/login', async (req, res) => {
 
     // 检查用户状态
     if (user.status !== 'active') {
+      console.log('❌ 用户状态非活跃:', { userId: user._id, status: user.status });
       return res.status(401).json({
         success: false,
         message: '用户账户已被禁用'
@@ -161,12 +222,23 @@ router.post('/login', async (req, res) => {
 
     // 验证密码
     let isPasswordValid;
-    if (global.memoryDB) {
+    if (global.memoryDB && process.env.USE_MEMORY_DB === 'true') {
       // 内存数据库模式
+      console.log('🔐 内存数据库模式密码验证:', { 
+        userId: user._id, 
+        inputPassword: password, 
+        storedPasswordHash: user.password.substring(0, 20) + '...' 
+      });
       isPasswordValid = await bcrypt.compare(password, user.password);
+      console.log('🔐 密码验证结果:', { userId: user._id, isValid: isPasswordValid });
     } else {
       // MongoDB模式
+      console.log('🔐 MongoDB模式密码验证:', { 
+        userId: user._id, 
+        inputPassword: password 
+      });
       isPasswordValid = await user.comparePassword(password);
+      console.log('🔐 密码验证结果:', { userId: user._id, isValid: isPasswordValid });
     }
 
     if (!isPasswordValid) {
@@ -178,7 +250,7 @@ router.post('/login', async (req, res) => {
 
     // 更新最后登录时间
     user.lastLoginAt = new Date();
-    if (!global.memoryDB) {
+    if (!global.memoryDB || process.env.USE_MEMORY_DB !== 'true') {
       await user.save();
     }
 
@@ -318,6 +390,13 @@ router.put('/me', authMiddleware, async (req, res) => {
 router.put('/change-password', authMiddleware, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
+    
+    console.log('🔐 密码修改请求:', {
+      userId: req.user.id,
+      hasCurrentPassword: !!currentPassword,
+      hasNewPassword: !!newPassword,
+      newPasswordLength: newPassword?.length
+    });
 
     if (!currentPassword || !newPassword) {
       return res.status(400).json({
@@ -326,13 +405,23 @@ router.put('/change-password', authMiddleware, async (req, res) => {
       });
     }
 
+    // 验证新密码强度
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: '新密码至少6个字符'
+      });
+    }
+
     let user;
     if (global.memoryDB) {
       // 内存数据库模式
       user = global.memoryDB.users.find(u => u._id === req.user.id);
+      console.log('📝 内存数据库模式，用户:', user ? { id: user._id, name: user.name } : '未找到');
     } else {
       // MongoDB模式
       user = await User.findById(req.user.id).select('+password');
+      console.log('📝 MongoDB模式，用户:', user ? { id: user._id, name: user.name } : '未找到');
     }
     
     if (!user) {
@@ -351,6 +440,8 @@ router.put('/change-password', authMiddleware, async (req, res) => {
       // MongoDB模式
       isCurrentPasswordValid = await user.comparePassword(currentPassword);
     }
+    
+    console.log('🔍 当前密码验证结果:', isCurrentPasswordValid);
 
     if (!isCurrentPasswordValid) {
       return res.status(400).json({
@@ -363,10 +454,20 @@ router.put('/change-password', authMiddleware, async (req, res) => {
     if (global.memoryDB) {
       // 内存数据库模式
       user.password = await bcrypt.hash(newPassword, 12);
+      console.log('✅ 内存数据库密码更新完成');
     } else {
-      // MongoDB模式
-      user.password = newPassword;
-      await user.save();
+      // MongoDB模式 - 使用updateOne避免触发pre('save')中间件
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
+      await User.updateOne(
+        { _id: req.user.id },
+        { 
+          $set: { 
+            password: hashedPassword,
+            updatedAt: new Date()
+          }
+        }
+      );
+      console.log('✅ MongoDB密码更新完成，用户ID:', req.user.id);
     }
 
     res.json({
@@ -374,7 +475,7 @@ router.put('/change-password', authMiddleware, async (req, res) => {
       message: '密码修改成功'
     });
   } catch (error) {
-    console.error('修改密码失败:', error);
+    console.error('❌ 修改密码失败:', error);
     res.status(500).json({
       success: false,
       message: '修改密码失败',

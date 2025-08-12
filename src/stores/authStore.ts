@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { User } from '../types/user'
-import { authAPI } from '../services/api'
+import { authAPI, userAPI } from '../services/api'
 
 // 扩展Window接口以包含systemLogs属性
 declare global {
@@ -27,11 +27,11 @@ interface AuthState {
 }
 
 interface AuthActions {
-  login: (username: string, password: string) => Promise<void>
+  login: (name: string, password: string) => Promise<void>
   logout: () => void
   clearError: () => void
   setLoading: (loading: boolean) => void
-  updateUserPassword: (username: string, newPassword: string) => void
+  updateUserPassword: (name: string, newPassword: string) => void
   logSystemActivity: (userId: string, action: string, description: string) => void
 }
 
@@ -41,7 +41,6 @@ type AuthStore = AuthState & AuthActions
 let globalUsers: User[] = [
   {
     id: '1',
-    username: 'admin',
     email: 'admin@example.com',
     role: 'admin',
     name: '系统管理员',
@@ -52,7 +51,6 @@ let globalUsers: User[] = [
   },
   {
     id: '2',
-    username: 'developer',
     email: 'developer@example.com',
     role: 'developer',
     name: '开发工程师',
@@ -63,7 +61,6 @@ let globalUsers: User[] = [
   },
   {
     id: '3',
-    username: 'tester',
     email: 'tester@example.com',
     role: 'tester',
     name: '测试工程师',
@@ -85,36 +82,57 @@ export const getAllUsers = () => {
 }
 
 // 更新用户密码
-export const updateUserPassword = (username: string, newPassword: string) => {
-  const user = globalUsers.find(u => u.username === username)
+export const updateUserPassword = (name: string, newPassword: string) => {
+  const user = globalUsers.find(u => u.name === name)
   if (user) {
     user.password = newPassword
+    // 记录密码重置日志
+    logSystemActivity(user.id, 'PASSWORD_RESET', `用户重置密码`)
   }
 }
 
 // 全局日志记录函数
 export const logSystemActivity = (userId: string, action: string, description: string) => {
-  try {
-    const newLog = {
-      id: Date.now().toString(),
-      userId,
-      action,
-      description,
-      ipAddress: '192.168.1.100', // 模拟IP地址
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      createdAt: new Date().toISOString()
+  // 使用 fire and forget 方式，不阻塞主流程
+  (async () => {
+    try {
+      const newLog = {
+        id: Date.now().toString(),
+        userId,
+        action,
+        description,
+        ipAddress: '192.168.1.100', // 模拟IP地址
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        createdAt: new Date().toISOString()
+      }
+      
+      // 将日志添加到全局日志存储中（前端内存）
+      if (!window.systemLogs) {
+        window.systemLogs = []
+      }
+      window.systemLogs.unshift(newLog)
+      
+      console.log('系统日志记录:', newLog)
+      
+      // 同时保存到后端数据库
+      try {
+        await userAPI.logUserActivity(userId, {
+          action,
+          description,
+          resourceType: 'system',
+          resourceId: userId,
+          severity: 'low',
+          status: 'success'
+        })
+        console.log('系统日志已保存到数据库')
+      } catch (dbError) {
+        console.error('保存系统日志到数据库失败:', dbError)
+        // 数据库保存失败不影响前端功能，只记录错误
+      }
+    } catch (error) {
+      console.error('记录系统活动失败:', error)
     }
-    
-    // 将日志添加到全局日志存储中
-    if (!window.systemLogs) {
-      window.systemLogs = []
-    }
-    window.systemLogs.unshift(newLog)
-    
-    console.log('系统日志记录:', newLog)
-  } catch (error) {
-    console.error('记录系统活动失败:', error)
-  }
+  })()
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -126,12 +144,12 @@ export const useAuthStore = create<AuthStore>()(
       isLoading: false,
       error: null,
 
-      login: async (username: string, password: string) => {
+      login: async (name: string, password: string) => {
         set({ isLoading: true, error: null })
         
         try {
           // 调用真实API
-          const response = await authAPI.login({ username, password })
+          const response = await authAPI.login({ name, password })
           
           // 检查响应结构
           if (response.data && response.data.success) {
@@ -174,11 +192,19 @@ export const useAuthStore = create<AuthStore>()(
         // 清除localStorage中的token
         localStorage.removeItem('auth-token')
         
+        // 清除所有可能的认证相关存储
+        sessionStorage.clear()
+        
+        // 清除Zustand持久化存储
+        localStorage.removeItem('auth-storage')
+        
+        // 重置状态
         set({
           user: null,
           token: null,
           isAuthenticated: false,
-          error: null
+          error: null,
+          isLoading: false
         })
       },
 
@@ -190,8 +216,8 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: loading })
       },
 
-      updateUserPassword: (username: string, newPassword: string) => {
-        const user = globalUsers.find(u => u.username === username)
+      updateUserPassword: (name: string, newPassword: string) => {
+        const user = globalUsers.find(u => u.name === name)
         if (user) {
           user.password = newPassword
           // 记录密码重置日志
@@ -200,27 +226,46 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       logSystemActivity: (userId: string, action: string, description: string) => {
-        try {
-          const newLog = {
-            id: Date.now().toString(),
-            userId,
-            action,
-            description,
-            ipAddress: '192.168.1.100', // 模拟IP地址
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            createdAt: new Date().toISOString()
+        // 使用 fire and forget 方式，不阻塞主流程
+        (async () => {
+          try {
+            const newLog = {
+              id: Date.now().toString(),
+              userId,
+              action,
+              description,
+              ipAddress: '192.168.1.100', // 模拟IP地址
+              userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              createdAt: new Date().toISOString()
+            }
+            
+            // 将日志添加到全局日志存储中（前端内存）
+            if (!window.systemLogs) {
+              window.systemLogs = []
+            }
+            window.systemLogs.unshift(newLog)
+            
+            console.log('系统日志记录:', newLog)
+            
+            // 同时保存到后端数据库
+            try {
+              await userAPI.logUserActivity(userId, {
+                action,
+                description,
+                resourceType: 'system',
+                resourceId: userId,
+                severity: 'low',
+                status: 'success'
+              })
+              console.log('系统日志已保存到数据库')
+            } catch (dbError) {
+              console.error('保存系统日志到数据库失败:', dbError)
+              // 数据库保存失败不影响前端功能，只记录错误
+            }
+          } catch (error) {
+            console.error('记录系统活动失败:', error)
           }
-          
-          // 将日志添加到全局日志存储中
-          if (!window.systemLogs) {
-            window.systemLogs = []
-          }
-          window.systemLogs.unshift(newLog)
-          
-          console.log('系统日志记录:', newLog)
-        } catch (error) {
-          console.error('记录系统活动失败:', error)
-        }
+        })()
       }
     }),
     {
@@ -234,7 +279,7 @@ export const useAuthStore = create<AuthStore>()(
       onRehydrateStorage: () => (state) => {
         if (state && state.user) {
           // 从全局用户数据中恢复完整的用户信息
-          const fullUser = globalUsers.find(u => u.username === state.user?.username)
+          const fullUser = globalUsers.find(u => u.name === state.user?.name)
           if (fullUser) {
             state.user = fullUser
           }

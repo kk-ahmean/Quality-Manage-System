@@ -14,6 +14,7 @@ import {
 } from '../types/task'
 import { User } from '../types/user'
 import { taskAPI } from '../services/api'
+import { useAuthStore } from './authStore'
 
 interface TaskStore {
   // 状态
@@ -41,6 +42,10 @@ interface TaskStore {
   setFilters: (filters: TaskFilters) => void
   setCurrentTask: (task: Task | null) => void
   resetFilters: () => void
+  
+  // 权限检查
+  canEditTask: (task: Task) => boolean;
+  canDeleteTask: (task: Task) => boolean;
 }
 
 const mockStatistics: TaskStatistics = {
@@ -355,5 +360,75 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   // 重置筛选条件
   resetFilters: () => {
     set({ filters: {} })
+  },
+
+  // 权限检查 - 是否可以编辑任务
+  canEditTask: (task: Task) => {
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) {
+      console.log('任务权限检查失败: 用户未登录');
+      return false;
+    }
+    
+    // 管理员可以编辑所有任务
+    if (currentUser.role === 'admin') {
+      console.log('任务权限检查通过: 管理员权限');
+      return true;
+    }
+    
+    // 任务创建者可以编辑自己的任务
+    if (task.creator === currentUser.id || task.creator === currentUser._id) {
+      console.log('任务权限检查通过: 任务创建者', {
+        taskCreator: task.creator,
+        currentUserId: currentUser.id,
+        currentUser_id: currentUser._id
+      });
+      return true;
+    }
+    
+    // 检查用户是否有任务编辑权限
+    const hasEditPermission = currentUser.permissions?.includes('task:update');
+    console.log('任务权限检查结果:', {
+      hasEditPermission,
+      userPermissions: currentUser.permissions,
+      taskCreator: task.creator,
+      currentUserId: currentUser.id
+    });
+    return hasEditPermission || false;
+  },
+
+  // 权限检查 - 是否可以删除任务
+  canDeleteTask: (task: Task) => {
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser) {
+      console.log('任务权限检查失败: 用户未登录');
+      return false;
+    }
+    
+    // 管理员可以删除所有任务
+    if (currentUser.role === 'admin') {
+      console.log('任务权限检查通过: 管理员权限');
+      return true;
+    }
+    
+    // 任务创建者可以删除自己的任务
+    if (task.creator === currentUser.id || task.creator === currentUser._id) {
+      console.log('任务权限检查通过: 任务创建者', {
+        taskCreator: task.creator,
+        currentUserId: currentUser.id,
+        currentUser_id: currentUser._id
+      });
+      return true;
+    }
+    
+    // 检查用户是否有任务删除权限
+    const hasDeletePermission = currentUser.permissions?.includes('task:delete');
+    console.log('任务权限检查结果:', {
+      hasDeletePermission,
+      userPermissions: currentUser.permissions,
+      taskCreator: task.creator,
+      currentUserId: currentUser.id
+    });
+    return hasDeletePermission || false;
   }
 })) 
